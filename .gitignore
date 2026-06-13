@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.env
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+backend/yfinance_cache.json
+backend/analysis_cache.json
+backend/translation_cache.json
+.tmp.driveupload/
+.tmp.drivedownload/
