@@ -255,12 +255,12 @@ export default function Home() {
   };
 
   return (
-    <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+    <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "clamp(0.75rem, 3vw, 2rem)" }}>
       {/* Header & Search */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: "800", color: "var(--foreground)" }}>LongBridge AI</h1>
-          <p style={{ margin: "0.25rem 0 0 0", color: "var(--secondary-foreground)", opacity: 0.7, fontSize: "0.9rem" }}>Çoklu Ajan Finansal Analiz ve RAG Terminali</p>
+          <h1 style={{ margin: 0, fontSize: "clamp(1.1rem, 4vw, 1.75rem)", fontWeight: "800", color: "var(--foreground)" }}>LongBridge AI</h1>
+          <p style={{ margin: "0.25rem 0 0 0", color: "var(--secondary-foreground)", opacity: 0.7, fontSize: "clamp(0.7rem, 2vw, 0.9rem)" }}>Çoklu Ajan Finansal Analiz ve RAG Terminali</p>
         </div>
         <form onSubmit={handleSearchSubmit} ref={searchContainerRef} className="flex gap-2 w-full sm:w-auto relative">
           <div className="relative flex-1 sm:flex-initial">
@@ -325,12 +325,12 @@ export default function Home() {
       {/* Main Navigation Menu */}
       <div className="card glass nav-tabs-container">
         {[
-          { id: "dashboard", label: "Ana Kontrol Paneli", icon: <LayoutDashboard size={16} /> },
-          { id: "analysis", label: "Detaylı Analiz", icon: <Activity size={16} /> },
-          { id: "strategy", label: "Strateji Raporları", icon: <Compass size={16} /> },
-          { id: "screener", label: "Akıllı Arama", icon: <Sparkles size={16} /> },
-          { id: "discover", label: "Derin Araştırma (DeepResearch)", icon: <TrendingUp size={16} /> },
-          { id: "chat", label: "AI Sohbet", icon: <MessageCircle size={16} /> }
+          { id: "dashboard", label: "Ana Kontrol Paneli", short: "Pano", icon: <LayoutDashboard size={16} /> },
+          { id: "analysis", label: "Detaylı Analiz", short: "Analiz", icon: <Activity size={16} /> },
+          { id: "strategy", label: "Strateji Raporları", short: "Strateji", icon: <Compass size={16} /> },
+          { id: "screener", label: "Akıllı Arama", short: "Arama", icon: <Sparkles size={16} /> },
+          { id: "discover", label: "Derin Araştırma (DeepResearch)", short: "Keşif", icon: <TrendingUp size={16} /> },
+          { id: "chat", label: "AI Sohbet", short: "Sohbet", icon: <MessageCircle size={16} /> }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -338,7 +338,8 @@ export default function Home() {
             className={`nav-tab-btn ${activeTab === tab.id ? "active" : ""}`}
           >
             {tab.icon}
-            <span>{tab.label}</span>
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden">{tab.short}</span>
           </button>
         ))}
       </div>

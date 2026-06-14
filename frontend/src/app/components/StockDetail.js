@@ -10,11 +10,11 @@ export default function StockDetail({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2rem", width: "100%" }}>
         {/* Overview & Key Stats */}
-        <div className="card glass animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <h2 style={{ margin: 0, fontSize: "1.5rem", fontWeight: "700" }}>{stockData.name} ({stockData.ticker})</h2>
+        <div className="card glass animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "clamp(0.75rem, 3vw, 1.5rem)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border)", paddingBottom: "1rem", gap: "0.5rem" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <h2 style={{ margin: 0, fontSize: "clamp(1rem, 3.5vw, 1.5rem)", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stockData.name} ({stockData.ticker})</h2>
                 <button
                   onClick={() => toggleWatchlist(stockData.ticker)}
                   aria-label="Takip listesine ekle/çıkar"
@@ -33,13 +33,13 @@ export default function StockDetail({
               </div>
               <span style={{ fontSize: "0.85rem", color: "var(--secondary-foreground)", display: "inline-block", marginTop: "0.25rem" }}>{stockData.sector} / {stockData.industry}</span>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "1.85rem", fontWeight: "800", color: "var(--primary)" }}>{formatVal(stockData.current_price, "currency", stockData.currency)}</div>
-              <span style={{ fontSize: "0.85rem", color: "var(--secondary-foreground)" }}>Son Güncelleme Fiyatı</span>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontSize: "clamp(1.1rem, 4vw, 1.85rem)", fontWeight: "800", color: "var(--primary)" }}>{formatVal(stockData.current_price, "currency", stockData.currency)}</div>
+              <span style={{ fontSize: "clamp(0.6rem, 1.5vw, 0.85rem)", color: "var(--secondary-foreground)", whiteSpace: "nowrap" }}>Son Güncelleme Fiyatı</span>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(100px, 25vw, 130px), 1fr))", gap: "clamp(0.5rem, 2vw, 1rem)" }}>
             <div className="stats-item">
               <div style={{ fontSize: "0.75rem", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>F/K ORANI</div>
               <div style={{ fontSize: "1.1rem", fontWeight: "700", marginTop: "0.25rem" }}>{formatVal(stockData.pe_ratio)}</div>
@@ -59,14 +59,14 @@ export default function StockDetail({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>
-              <span>52 HAFTALIK EN DÜŞÜK</span>
-              <span>52 HAFTALIK ARALIK</span>
-              <span>52 HAFTALIK EN YÜKSEK</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(0.6rem, 1.5vw, 0.8rem)", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>
+              <span>52H <span className="hidden sm:inline">EN DÜŞÜK</span></span>
+              <span className="hidden sm:inline">52 HAFTALIK ARALIK</span>
+              <span>52H <span className="hidden sm:inline">EN YÜKSEK</span></span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>{formatVal(stockData["52_week_low"], "currency", stockData.currency)}</span>
-              <div style={{ flex: 1, height: "6px", backgroundColor: "var(--border)", borderRadius: "99px", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "clamp(0.4rem, 2vw, 1rem)" }}>
+              <span style={{ fontSize: "clamp(0.75rem, 2vw, 0.9rem)", fontWeight: "600", whiteSpace: "nowrap" }}>{formatVal(stockData["52_week_low"], "currency", stockData.currency)}</span>
+              <div style={{ flex: 1, height: "6px", backgroundColor: "var(--border)", borderRadius: "99px", position: "relative", minWidth: "60px" }}>
                 {(() => {
                   const low = stockData["52_week_low"];
                   const high = stockData["52_week_high"];
@@ -90,7 +90,7 @@ export default function StockDetail({
                   return null;
                 })()}
               </div>
-              <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>{formatVal(stockData["52_week_high"], "currency", stockData.currency)}</span>
+              <span style={{ fontSize: "clamp(0.75rem, 2vw, 0.9rem)", fontWeight: "600", whiteSpace: "nowrap" }}>{formatVal(stockData["52_week_high"], "currency", stockData.currency)}</span>
             </div>
           </div>
         </div>
