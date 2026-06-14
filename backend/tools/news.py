@@ -3,6 +3,8 @@ and returns the latest headlines for a given symbol."""
 
 from typing import Any, Dict
 
+from tools.shared import format_ticker
+
 
 SPEC: Dict[str, Any] = {
     "name": "get_stock_news",
@@ -19,10 +21,7 @@ SPEC: Dict[str, Any] = {
             },
             "limit": {
                 "type": "integer",
-                "description": "Maksimum haber sayısı (varsayılan 5, maks 10).",
-                "default": 5,
-                "minimum": 1,
-                "maximum": 10,
+                "description": "Maksimum haber sayısı (1-10 arası, varsayılan 5).",
             },
         },
         "required": ["ticker"],
@@ -31,7 +30,7 @@ SPEC: Dict[str, Any] = {
 
 
 def run(ticker: str, limit: int = 5) -> str:
-    # Lazy import to avoid circular dependency
+    # Lazy import to avoid pulling in main.py's heavy dependencies (litellm, etc.)
     from main import get_news_for_ticker
 
     symbol = (ticker or "").upper().strip()

@@ -99,9 +99,10 @@ export function useChat({ mode, ticker = null } = {}) {
   }, [sessionKey, createSession]);
 
   useEffect(() => {
-    queueMicrotask(() => {
+    const timer = setTimeout(() => {
       initSession();
-    });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [initSession]);
 
   const handleNewSession = useCallback(async () => {
@@ -157,7 +158,7 @@ export function useChat({ mode, ticker = null } = {}) {
           if (mode === "ticker" && data.ticker_changed) {
             setMessages((prev) => [
               ...prev,
-              { role: "assistant", content: `Bağlam **${data.new_ticker || ticker}** hissesine geçildi.` },
+              { role: "assistant", content: `Bağlam **${ticker}** hissesine geçildi.` },
               { role: "assistant", content: data.reply },
             ]);
           } else {
@@ -175,11 +176,31 @@ export function useChat({ mode, ticker = null } = {}) {
             },
           ]);
         } else {
-          const errText = await res.text();
-          setError(`Sunucu hatası: ${errText.slice(0, 200)}`);
+          let errDetail = "";
+          try {
+            const errJson = await res.json();
+            errDetail = errJson.detail || errJson.message || "";
+          } catch (_) {
+            errDetail = await res.text().catch(() => "");
+          }
+
+          let userMsg = "";
+          if (res.status === 502) {
+            userMsg = "Yapay zeka modeli şu an yanıt üretemiyor. Lütfen biraz bekleyip tekrar deneyin.";
+          } else if (res.status === 500) {
+            userMsg = "Sunucuda beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.";
+          } else if (res.status === 429) {
+            userMsg = "Çok fazla istek gönderildi. Lütfen biraz bekleyip tekrar deneyin.";
+          } else if (res.status === 400) {
+            userMsg = errDetail || "Geçersiz istek. Lütfen mesajınızı kontrol edin.";
+          } else {
+            userMsg = `Sunucu hatası (${res.status}): ${errDetail.slice(0, 120)}`;
+          }
+
+          setError(userMsg);
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `Üzgünüm, şu an yanıt veremiyorum. (${errText.slice(0, 120)})` },
+            { role: "assistant", content: `Üzgünüm, şu an yanıt veremiyorum. ${userMsg}` },
           ]);
         }
       } catch (err) {

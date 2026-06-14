@@ -20,6 +20,7 @@ import random
 import uuid
 import threading
 import datetime
+from datetime import timedelta
 from contextlib import asynccontextmanager
 import sys
 from loguru import logger
@@ -94,6 +95,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.exception(f"Unhandled exception: {exc}")
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Beklenmeyen bir hata oluştu: {type(exc).__name__}"},
+    )
+
 # Active model configuration
 class AppConfig:
     default_model = os.getenv("DEFAULT_MODEL", "gemini/gemini-1.5-flash")
@@ -134,7 +144,7 @@ def load_yf_cache_from_disk():
 def get_dynamic_ttl() -> float:
     try:
         # Turkey timezone is UTC+3
-        tr_now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
+        tr_now = datetime.datetime.now(datetime.timezone(timedelta(hours=3)))
         is_weekend = tr_now.weekday() >= 5
         is_market_hours = 10 <= tr_now.hour < 19
         if is_weekend or not is_market_hours:
@@ -997,8 +1007,8 @@ def get_stock_chart(ticker: str, period: str = "1mo"):
     Fetch historical price data for charts.
     Period options: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
     """
-    ticker_upper = ticker.upper().strip()
-    cache_key = f"chart_{ticker_upper}_{period}"
+    symbol = format_ticker(ticker)
+    cache_key = f"chart_{symbol}_{period}"
     ttl = get_dynamic_ttl()
     
     cached = get_cached_yfinance(cache_key, ttl)
@@ -1006,7 +1016,6 @@ def get_stock_chart(ticker: str, period: str = "1mo"):
         return cached
 
     try:
-        symbol = format_ticker(ticker)
         yf_rate_limit_wait()
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period)
@@ -1055,6 +1064,9 @@ def calculate_rsi(prices, period=14):
         
     rs = avg_gain / avg_loss if avg_loss > 0 else float('inf')
     return 100.0 - (100.0 / (1 + rs))
+
+CURRENCY_SYMBOLS = {"USD": "$", "EUR": "€", "TRY": "₺", "GBP": "£", "JPY": "¥"}
+
 @app.get("/api/stock/{ticker}/analysis")
 def get_stock_analysis(ticker: str, model: Optional[str] = None, force_refresh: bool = False):
     """
@@ -1088,16 +1100,17 @@ def get_stock_analysis(ticker: str, model: Optional[str] = None, force_refresh: 
         currency_val = info.get("currency", "TRY") if info else "TRY"
         if not info and ("-" in symbol or "USD" in symbol):
             currency_val = "USD"
-        currency_symbol = "$" if currency_val == "USD" else "€" if currency_val == "EUR" else "TL"
+        currency_symbol = CURRENCY_SYMBOLS.get(currency_val, "₺")
         
         # 2. Fetch Chart trends (last 1 month) & Technical indicators
         hist_1y = stock.history(period="1y")
-        hist_1mo = hist_1y.iloc[0:0]
-        hist_6m = hist_1y.iloc[0:0]
         if not hist_1y.empty:
             last_date = hist_1y.index[-1]
-            hist_1mo = hist_1y[hist_1y.index >= (last_date - datetime.timedelta(days=30))]
-            hist_6m = hist_1y[hist_1y.index >= (last_date - datetime.timedelta(days=180))]
+            hist_1mo = hist_1y[hist_1y.index >= (last_date - timedelta(days=30))]
+            hist_6m = hist_1y[hist_1y.index >= (last_date - timedelta(days=180))]
+        else:
+            hist_1mo = type(hist_1y)()
+            hist_6m = type(hist_1y)()
 
         chart_summary = ""
         if not hist_1mo.empty:
@@ -1218,7 +1231,7 @@ def get_stock_analysis(ticker: str, model: Optional[str] = None, force_refresh: 
         Tüm fiyat analizlerinde para birimini {currency_symbol} olarak baz al.
         Bu analiz tamamen bireysel/kişisel kullanım içindir. Kesinlikle hiçbir yasal uyarı, çekince veya "yatırım tavsiyesi değildir" gibi ibareler kullanma. Doğrudan, net, cesur ve kararlı alım/satım gerekçeleri ve net stratejiler sun.
         
-        Yanıtını SADECE ve SADECE aşağıdaki JSON formatında vermelisin. Yanıtında JSON dışında hiçbir metin, açıklama veya markdown bloğu (```json gibi işaretler de dahil olmak üzere) YER ALMAMALIDIR. Sadece ham JSON string dön.
+        Yanıtını SADECE ve SADECE aşağıdaki JSON formatında vermelisin. Yanıtında JSON dışında hiçbir metin, açıklama veya markdown bloğu (```json gibi işaretler de dahil olmak üzere) YER ALMALIDIR. Sadece ham JSON string dön.
         
         JSON Formatı:
         {{
@@ -1363,7 +1376,7 @@ def chat_with_ai(req: ChatRequest):
             currency_val = info.get("currency", "TRY") if info else "TRY"
             if not info and ("-" in symbol or "USD" in symbol):
                 currency_val = "USD"
-            currency_symbol = "$" if currency_val == "USD" else "€" if currency_val == "EUR" else "TL"
+            currency_symbol = CURRENCY_SYMBOLS.get(currency_val, "₺")
 
             # Fetch minimal metrics
             current_price = info.get("currentPrice", info.get("regularMarketPrice", "Bilinmiyor"))
@@ -1493,7 +1506,7 @@ def chat_with_ai_session(req: ChatRequestV2):
                 currency_val = info.get("currency", "TRY") if info else "TRY"
                 if not info and ("-" in symbol or "USD" in symbol):
                     currency_val = "USD"
-                currency_symbol = "$" if currency_val == "USD" else "€" if currency_val == "EUR" else "TL"
+                currency_symbol = CURRENCY_SYMBOLS.get(currency_val, "₺")
 
                 current_price = info.get("currentPrice", info.get("regularMarketPrice", "Bilinmiyor"))
                 pe_ratio = info.get("trailingPE", "Bilinmiyor")
@@ -1653,27 +1666,46 @@ def chat_with_ai_independent(req: ChatRequestIndependent):
 
         active_llm = req.model if req.model else AppConfig.default_model
         tool_specs = tool_registry.get_specs()
+        logger.info(f"Independent chat: model={active_llm}, session={req.session_id[:8]}, tools={len(tool_specs)}")
 
         # Multi-turn tool use loop
         tool_turns_used = 0
         final_reply: Optional[str] = None
+        tools_supported = True  # Track if model supports tools at all
         try:
             while tool_turns_used <= tool_registry.MAX_TOOL_TURNS:
                 llm_kwargs = _get_litellm_kwargs(active_llm)
-                try:
+                response = None
+                if tools_supported:
+                    try:
+                        response = reliable_llm_completion(
+                            **llm_kwargs,
+                            messages=messages,
+                            tools=tool_specs,
+                            tool_choice="auto",
+                            temperature=0.7,
+                        )
+                    except Exception as te:
+                        logger.warning(f"tools+tool_choice rejected, trying without tool_choice. Error: {type(te).__name__}: {str(te)[:200]}")
+                        try:
+                            response = reliable_llm_completion(
+                                **llm_kwargs,
+                                messages=messages,
+                                tools=tool_specs,
+                                temperature=0.7,
+                            )
+                        except Exception as te2:
+                            logger.warning(f"tools also rejected, disabling tools for this session. Error: {type(te2).__name__}: {str(te2)[:200]}")
+                            tools_supported = False
+                            response = reliable_llm_completion(
+                                **llm_kwargs,
+                                messages=messages,
+                                temperature=0.7,
+                            )
+                else:
                     response = reliable_llm_completion(
                         **llm_kwargs,
                         messages=messages,
-                        tools=tool_specs,
-                        tool_choice="auto",
-                        temperature=0.7,
-                    )
-                except TypeError as te:
-                    logger.warning(f"tool_choice param rejected by model, retrying without. Error: {te}")
-                    response = reliable_llm_completion(
-                        **llm_kwargs,
-                        messages=messages,
-                        tools=tool_specs,
                         temperature=0.7,
                     )
 
@@ -2063,15 +2095,27 @@ def get_screener_results(market: str = "bist", preset: str = "value_stocks"):
             "value_stocks": "undervalued_large_caps",
             "dividend_stocks": "high_dividend_yield"
         }
+        us_fallback_pools = {
+            "most_active": POPULAR_US_STOCKS,
+            "day_gainers": POPULAR_US_STOCKS,
+            "day_losers": POPULAR_US_STOCKS,
+            "value_stocks": [s for s in POPULAR_US_STOCKS if s["symbol"] in ("AAPL","MSFT","GOOGL","AMZN","BABA","NVDA","META")],
+            "growth_stocks": [s for s in POPULAR_US_STOCKS if s["symbol"] in ("TSLA","NVDA","AMD","META","COIN","NFLX","MSFT","AMZN")],
+            "dividend_stocks": [s for s in POPULAR_US_STOCKS if s["symbol"] in ("AAPL","MSFT","GOOGL","BABA","META")],
+        }
+
         scr_id = yahoo_preset_map.get(preset_clean, "day_gainers")
+        quotes_list = []
+
+        # Try Yahoo Finance API first
         try:
+            yf_rate_limit_wait()
             url = f"https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds={scr_id}&count=20"
-            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
             if r.status_code == 200:
                 data = r.json()
                 results = data.get("finance", {}).get("result", [])
                 quotes = results[0].get("quotes", []) if results else []
-                quotes_list = []
                 for q in quotes:
                     quotes_list.append({
                         "symbol": q.get("symbol"),
@@ -2084,11 +2128,35 @@ def get_screener_results(market: str = "bist", preset: str = "value_stocks"):
                         "currency": q.get("currency", "USD"),
                         "status": "ok"
                     })
-                set_cached_yfinance(cache_key, quotes_list)
-                return quotes_list
+            else:
+                logger.warning(f"US Screener Yahoo API status {r.status_code} for preset={preset_clean}")
         except Exception as e:
-            logger.error(f"US Screener error: {e}")
-        return []
+            logger.error(f"US Screener Yahoo API error: {e}")
+
+        # Fallback: Yahoo API yanıt vermezse POPULAR_US_STOCKS havuzunu tara
+        if not quotes_list:
+            logger.info(f"US Screener fallback basliyor (preset={preset_clean})")
+            fallback_pool = us_fallback_pools.get(preset_clean, POPULAR_US_STOCKS)
+            name_map = {s["symbol"]: s["name"] for s in fallback_pool}
+            symbols = [s["symbol"] for s in fallback_pool]
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                fut_map = {executor.submit(get_ticker_summary, sym): sym for sym in symbols}
+                for future in fut_map:
+                    try:
+                        result = future.result()
+                        if result and result.get("status") == "ok":
+                            result["name"] = name_map.get(result["symbol"], result["symbol"])
+                            quotes_list.append(result)
+                    except Exception as e:
+                        logger.warning(f"US Screener fallback error for {fut_map[future]}: {e}")
+
+            # Sıralama: most_active → hacme göre azalan; day_gainers/day_losers → değişime göre
+            sort_key = "volume" if preset_clean == "most_active" else "change"
+            quotes_list.sort(key=lambda x: x.get(sort_key, 0), reverse=(preset_clean != "day_losers"))
+
+        if quotes_list:
+            set_cached_yfinance(cache_key, quotes_list)
+        return quotes_list
 
     # 2. CRYPTO
     elif market_clean == "crypto":
@@ -2201,7 +2269,7 @@ def get_screener_results(market: str = "bist", preset: str = "value_stocks"):
     else: # bist
         results = []
         pool = BIST_ACTIVE_POOL
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {executor.submit(get_ticker_summary, f"{sym}.IS"): sym for sym in pool}
             for future in futures:
                 sym = futures[future]
@@ -2389,7 +2457,7 @@ def generate_dynamic_ai_market_data(model: Optional[str] = None) -> dict:
         
         Kesinlikle hiçbir yasal uyarı veya "yatırım tavsiyesi değildir" ibaresi kullanma. Yanıtını doğrudan ve iddialı bir dille yaz.
         
-        Yanıtını SADECE ve SADECE aşağıdaki JSON formatında vermelisin. Yanıtında JSON dışında hiçbir metin, açıklama veya markdown bloğu (```json gibi işaretler de dahil olmak üzere) YER ALMAMALIDIR. Sadece ham JSON string dön.
+        Yanıtını SADECE ve SADECE aşağıdaki JSON formatında vermelisin. Yanıtında JSON dışında hiçbir metin, açıklama veya markdown bloğu (```json gibi işaretler de dahil olmak üzere) YER ALMALIDIR. Sadece ham JSON string dön.
         
         JSON Formatı:
         {
@@ -2839,7 +2907,7 @@ def run_async_market_scan(task_id: str, market: str, active_llm: str):
 
         # 2. Get summaries in parallel to calculate momentum scores
         summaries = []
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {executor.submit(get_ticker_summary, sym): sym for sym in tickers}
             for future in futures:
                 sym = futures[future]
@@ -3355,17 +3423,15 @@ async def periodic_cache_warmer():
             symbols_to_update.extend(indices_symbols)
             symbols_to_update.extend(crypto_symbols)
             for sym in details_watchlist:
-                if "." in sym:
-                    symbols_to_update.append(sym)
-                elif sym in ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN", "GOOGL", "META", "AMD", "NFLX", "COIN"]:
+                if sym in ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN", "GOOGL", "META", "AMD", "NFLX", "COIN"]:
                     symbols_to_update.append(sym)
                 else:
-                    symbols_to_update.append(f"{sym}.IS")
+                    symbols_to_update.append(format_ticker(sym))
                 
             loop = asyncio.get_running_loop()
             
-            # Fetch summaries with low concurrency (5 workers)
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            # Fetch summaries with low concurrency (1 worker)
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 futures = []
                 for sym in symbols_to_update:
                     futures.append(loop.run_in_executor(executor, get_ticker_summary, sym))

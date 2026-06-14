@@ -6,6 +6,8 @@ from typing import Any, Dict
 
 import yfinance as yf
 
+from tools.shared import format_ticker, get_cached_yfinance, set_cached_yfinance, yf_rate_limit_wait
+
 
 SPEC: Dict[str, Any] = {
     "name": "get_stock_history",
@@ -22,8 +24,7 @@ SPEC: Dict[str, Any] = {
             },
             "period": {
                 "type": "string",
-                "description": "Zaman aralığı. yfinance formatı: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max.",
-                "default": "1mo",
+                "description": "Zaman aralığı (yfinance): 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Varsayılan: 1mo.",
             },
         },
         "required": ["ticker"],
@@ -35,9 +36,6 @@ _VALID_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd
 
 
 def run(ticker: str, period: str = "1mo") -> str:
-    # Lazy import to avoid circular dependency
-    from main import format_ticker, get_cached_yfinance, set_cached_yfinance, yf_rate_limit_wait
-
     symbol = (ticker or "").upper().strip()
     if not symbol:
         return "Hata: ticker boş olamaz."

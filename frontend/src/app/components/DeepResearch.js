@@ -143,7 +143,7 @@ export default function DeepResearch({
           setError(pollErr.message || "İlerleme durumu sorgulanırken hata oluştu.");
           setLoading(false);
         }
-      }, 1000);
+      }, 2000);
 
     } catch (err) {
       setError(err.message || "Bilinmeyen bir hata oluştu.");
@@ -191,7 +191,7 @@ export default function DeepResearch({
           { id: "bist", label: "Tüm BIST Şirketleri (~490)" },
           { id: "us", label: "Amerikan Borsaları (S&P 500 / Popüler)" },
           { id: "germany", label: "Almanya Borsası (DAX 40)" },
-          { id: "crypto", label: "Kripto Varlıklar (Top 30)" }
+          { id: "crypto", label: "Kripto Varlıklar (Top 200)" }
         ].map((m) => (
           <button
             key={m.id}
@@ -255,14 +255,24 @@ export default function DeepResearch({
             boxShadow: "inset 0 4px 10px rgba(0,0,0,0.8)"
           }}>
             {logs.map((log, index) => {
-              let logColor = "#4ade80"; // default green
-              if (log.startsWith("[HATA]")) logColor = "var(--danger)";
-              else if (log.startsWith("[UYARI]")) logColor = "#f59e0b"; // yellow
-              else if (log.startsWith("[AI]")) logColor = "var(--primary)"; // blue
-              else if (log.startsWith("[TAMAMLANDI]")) logColor = "var(--success)"; // bright green
-              
+              const logStyles = {
+                error: { color: "var(--danger)" },
+                warning: { color: "#f59e0b" },
+                ai: { color: "var(--primary)" },
+                success: { color: "var(--success)" },
+                default: { color: "#4ade80" },
+              };
+
+              const getLogStyle = (log) => {
+                if (log.startsWith("[HATA]")) return logStyles.error;
+                if (log.startsWith("[UYARI]")) return logStyles.warning;
+                if (log.startsWith("[AI]")) return logStyles.ai;
+                if (log.startsWith("[TAMAMLANDI]")) return logStyles.success;
+                return logStyles.default;
+              };
+
               return (
-                <div key={index} style={{ color: logColor, fontSize: "0.75rem", lineHeight: "1.4", textAlign: "left" }}>
+                <div key={index} style={{ ...getLogStyle(log), fontSize: "0.75rem", lineHeight: "1.4", textAlign: "left" }}>
                   {log}
                 </div>
               );

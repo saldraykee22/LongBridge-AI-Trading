@@ -36,7 +36,7 @@ from .history import run as history_run, SPEC as HISTORY_SPEC
 
 def _wrap(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Wrap an internal tool spec in the OpenAI/Deepseek function envelope."""
-    return {
+    wrapped = {
         "type": "function",
         "function": {
             "name": spec["name"],
@@ -44,6 +44,11 @@ def _wrap(spec: Dict[str, Any]) -> Dict[str, Any]:
             "parameters": spec.get("parameters", {"type": "object", "properties": {}}),
         },
     }
+    # DeepSeek API requires "type" field at the top level of each tool.
+    # Validate to catch litellm serialization issues early.
+    if "type" not in wrapped or wrapped["type"] != "function":
+        logger.error(f"Tool spec '{spec['name']}' missing 'type: function' after wrap!")
+    return wrapped
 
 
 TOOL_SPECS: List[Dict[str, Any]] = [

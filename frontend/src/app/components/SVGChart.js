@@ -1,14 +1,27 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Activity } from "lucide-react";
 
-const CHART_WIDTH = 750;
 const CHART_HEIGHT = 280;
 const CHART_PADDING = 35;
 
 export default function SVGChart({ chartData, period, setPeriod, formatVal, currency }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const containerRef = useRef(null);
+  const [chartWidth, setChartWidth] = useState(750);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setChartWidth(entry.contentRect.width || 750);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const stats = useMemo(() => {
     if (!chartData || chartData.length === 0) return { min: 0, max: 0, change: 0, changePercent: 0, color: "var(--foreground)" };
@@ -32,7 +45,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
     const range = max - min || 1;
 
     const pts = chartData.map((d, index) => {
-      const x = CHART_PADDING + (index / (chartData.length - 1)) * (CHART_WIDTH - CHART_PADDING * 2);
+      const x = CHART_PADDING + (index / (chartData.length - 1)) * (chartWidth - CHART_PADDING * 2);
       const y = CHART_HEIGHT - CHART_PADDING - ((d.close - min) / range) * (CHART_HEIGHT - CHART_PADDING * 2);
       return { x, y, ...d };
     });
@@ -44,14 +57,14 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
     const aD = pD + ` L ${pts[pts.length - 1].x} ${CHART_HEIGHT - CHART_PADDING} L ${pts[0].x} ${CHART_HEIGHT - CHART_PADDING} Z`;
 
     return { points: pts, pathD: pD, areaD: aD, minClose: min, maxClose: max };
-  }, [chartData]);
+  }, [chartData, chartWidth]);
 
   const handleMouseMove = (e) => {
     if (points.length === 0) return;
     const svg = e.currentTarget;
     const rect = svg.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
-    const svgX = (mouseX / rect.width) * CHART_WIDTH;
+    const svgX = (mouseX / rect.width) * chartWidth;
 
     let closest = points[0];
     let minDiff = Math.abs(points[0].x - svgX);
@@ -102,7 +115,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
             aria-label="Fiyat grafiği"
             width="100%"
             height={CHART_HEIGHT}
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+            viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT}`}
             style={{ display: "block", overflow: "visible", cursor: "crosshair" }}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setHoveredPoint(null)}
@@ -123,7 +136,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                   <line
                     x1={CHART_PADDING}
                     y1={y}
-                    x2={CHART_WIDTH - CHART_PADDING}
+                    x2={chartWidth - CHART_PADDING}
                     y2={y}
                     style={{ stroke: 'var(--border)', strokeWidth: 1 }}
                     strokeDasharray="4 4"
@@ -172,7 +185,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                 <line
                   x1={CHART_PADDING}
                   y1={hoveredPoint.y}
-                  x2={CHART_WIDTH - CHART_PADDING}
+                  x2={chartWidth - CHART_PADDING}
                   y2={hoveredPoint.y}
                   style={{ stroke: 'var(--primary)', strokeWidth: 1.2 }}
                   strokeDasharray="3 3"
@@ -204,7 +217,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
         {hoveredPoint && (
           <div style={{
             position: "absolute",
-            left: `${(hoveredPoint.x / CHART_WIDTH) * 100}%`,
+            left: `${(hoveredPoint.x / chartWidth) * 100}%`,
             top: `${(hoveredPoint.y / CHART_HEIGHT) * 100 - 18}%`,
             transform: "translate(-50%, -100%)",
             background: "rgba(11, 15, 25, 0.85)",

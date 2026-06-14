@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Send, X, RefreshCw, MessageCircle, AlertCircle } from "lucide-react";
 import Markdown from "./Markdown";
 import { useChat } from "../hooks/useChat";
@@ -15,7 +15,6 @@ const SAMPLE_QUESTIONS = [
 export default function RAGChat({ ticker }) {
   const {
     messages,
-    setMessages,
     input,
     setInput,
     loading,
@@ -28,18 +27,6 @@ export default function RAGChat({ ticker }) {
   } = useChat({ mode: "ticker", ticker });
 
   const [showSamples, setShowSamples] = useState(true);
-
-  // Yeni ticker'a geçildiğinde hoş geldin mesajını göster
-  useEffect(() => {
-    if (!ticker) return;
-    setMessages([
-      {
-        role: "assistant",
-        content: `Merhaba! Ben **${ticker.toUpperCase()}** hissesi için hazırım. Teknik, temel veriler ve haberler ışığında analizimi yaptım. Aşağıdaki örneklerden birini seçebilir ya da doğrudan sorabilirsiniz.`,
-      },
-    ]);
-    queueMicrotask(() => setShowSamples(false));
-  }, [ticker]);
 
   const handleSampleClick = (q) => {
     sendMessage(q);

@@ -76,10 +76,8 @@ export default function Home() {
   const [recsLoading, setRecsLoading] = useState(false);
   const [activeRecsTab, setActiveRecsTab] = useState("bist");
 
-  const marketRequestControllerRef = useRef(null);
-  const screenerControllerRef = useRef(null);
-  const aiRankingsControllerRef = useRef(null);
-  const recsControllerRef = useRef(null);
+  const abortControllersRef = useRef({});
+  const fetchedTabsRef = useRef(new Set());
 
   // Watchlist handlers
   useEffect(() => {
@@ -120,11 +118,11 @@ export default function Home() {
 
   // Fetch market overview
   const fetchMarketOverview = useCallback(async () => {
-    if (marketRequestControllerRef.current) {
-      marketRequestControllerRef.current.abort();
+    if (abortControllersRef.current.marketOverview) {
+      abortControllersRef.current.marketOverview.abort();
     }
     const controller = new AbortController();
-    marketRequestControllerRef.current = controller;
+    abortControllersRef.current.marketOverview = controller;
     setMarketLoading(true);
     try {
       const res = await fetch("/api/market/overview", { signal: controller.signal });
@@ -145,11 +143,11 @@ export default function Home() {
   }, []);
 
   const fetchScreenerData = useCallback(async (market, preset) => {
-    if (screenerControllerRef.current) {
-      screenerControllerRef.current.abort();
+    if (abortControllersRef.current.screener) {
+      abortControllersRef.current.screener.abort();
     }
     const controller = new AbortController();
-    screenerControllerRef.current = controller;
+    abortControllersRef.current.screener = controller;
     setScreenerLoading(true);
     try {
       const res = await fetch(`/api/market/screener?market=${market}&preset=${preset}`, { signal: controller.signal });
@@ -170,11 +168,11 @@ export default function Home() {
   }, []);
 
   const fetchAiRankings = useCallback(async () => {
-    if (aiRankingsControllerRef.current) {
-      aiRankingsControllerRef.current.abort();
+    if (abortControllersRef.current.aiRankings) {
+      abortControllersRef.current.aiRankings.abort();
     }
     const controller = new AbortController();
-    aiRankingsControllerRef.current = controller;
+    abortControllersRef.current.aiRankings = controller;
     setAiRankingsLoading(true);
     try {
       const res = await fetch("/api/market/ai-ranking", { signal: controller.signal });
@@ -196,11 +194,11 @@ export default function Home() {
   }, []);
 
   const fetchRecommendations = useCallback(async () => {
-    if (recsControllerRef.current) {
-      recsControllerRef.current.abort();
+    if (abortControllersRef.current.recommendations) {
+      abortControllersRef.current.recommendations.abort();
     }
     const controller = new AbortController();
-    recsControllerRef.current = controller;
+    abortControllersRef.current.recommendations = controller;
     setRecsLoading(true);
     try {
       const res = await fetch("/api/market/recommendations", { signal: controller.signal });
@@ -221,17 +219,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    queueMicrotask(() => {
+    const timer = setTimeout(() => {
       if (activeTab === "dashboard") {
-        fetchMarketOverview();
-        fetchAiRankings();
-        fetchRecommendations();
+        if (!fetchedTabsRef.current.has("dashboard")) {
+          fetchedTabsRef.current.add("dashboard");
+          fetchMarketOverview();
+          fetchAiRankings();
+          fetchRecommendations();
+        }
       } else if (activeTab === "screener") {
+        fetchedTabsRef.current = new Set();
         fetchScreenerData(screenerMarket, screenerPreset);
       } else if (activeTab === "strategy") {
-        fetchAiRankings();
+        if (!fetchedTabsRef.current.has("strategy")) {
+          fetchedTabsRef.current.add("strategy");
+          fetchAiRankings();
+        }
       }
-    });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [activeTab, screenerMarket, screenerPreset, fetchMarketOverview, fetchScreenerData, fetchAiRankings, fetchRecommendations]);
 
   const handleSearchSubmit = (e) => {

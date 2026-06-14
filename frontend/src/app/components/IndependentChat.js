@@ -19,14 +19,11 @@ function MessageBubble({ msg, markdownMode }) {
       className={`chat-bubble ${isUser ? "chat-bubble-user" : "chat-bubble-assistant"}`}
     >
       {msg.role === "tool" ? (
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: "var(--secondary-foreground)",
-            fontStyle: "italic",
-          }}
-        >
-          🔎 {msg.toolName || "Araç"} çalıştırıldı
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "var(--secondary-foreground)", fontStyle: "italic", marginBottom: "0.3rem" }}>
+            🔎 {msg.toolName || "Araç"} çalıştırıldı
+          </div>
+          <Markdown content={msg.content} />
         </div>
       ) : markdownMode && !isUser ? (
         <Markdown content={msg.content} />

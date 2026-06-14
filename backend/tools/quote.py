@@ -5,6 +5,8 @@ from typing import Any, Dict
 
 import yfinance as yf
 
+from tools.shared import format_ticker, get_cached_yfinance, set_cached_yfinance, yf_rate_limit_wait
+
 
 SPEC: Dict[str, Any] = {
     "name": "get_stock_quote",
@@ -27,9 +29,6 @@ SPEC: Dict[str, Any] = {
 
 
 def run(ticker: str) -> str:
-    # Lazy import to avoid circular dependency with main.py
-    from main import format_ticker, get_cached_yfinance, set_cached_yfinance, yf_rate_limit_wait
-
     symbol = (ticker or "").upper().strip()
     if not symbol:
         return "Hata: ticker boş olamaz."
