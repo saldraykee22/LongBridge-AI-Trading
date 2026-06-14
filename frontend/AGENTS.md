@@ -38,7 +38,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Period change**: `setChartData([])` before fetchChart in useEffect
 
 ## Chat System
-- Session-based (backend in-memory store)
+- Session-based (backend SQLite-backed store via `chat_store.ChatStore`)
 - Session ID created on mount via `POST /api/chat/session`
 - Messages sent via `POST /api/chat/v2` with `{ session_id, message, ticker }`
 - Session cleared from localStorage on 404 (expired), new session auto-created

@@ -17,3 +17,6 @@ backend/replace_prints.py
 backend/add_tenacity.py
 .tmp.driveupload/
 .tmp.drivedownload/
+refactor_page.js
+*.tmp
+*.bak

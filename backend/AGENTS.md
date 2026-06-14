@@ -29,8 +29,9 @@ List ALL endpoints with their methods, paths, and brief descriptions:
 ## Data Flow
 - yfinance fetches stock data, chart, news
 - litellm.completion for AI analysis and chat
-- extract_json() for LLM response parsing (2 layers)
-- chat_store for session management
+- extract_json() for LLM response parsing (2 layers: direct json.loads + balanced-braces regex; 3rd layer is a strict-retry prompt handled by the caller `get_stock_analysis`)
+- chat_store (SQLite-backed) for session management
+- Peewee + SQLite (`backend/longbridge.db`) for all cache + session storage — `YFinanceCache`, `AnalysisCache`, `TranslationCache`, `ChatSession`
 
 ## Key Functions
 - format_ticker(ticker) — appends .IS for BIST if ticker is 5 chars or in BIST company list; len <= 3 tickers never get .IS (US stocks safe)
@@ -40,8 +41,8 @@ List ALL endpoints with their methods, paths, and brief descriptions:
 - _persist_model_to_env(model) — writes model change to .env file for persistence across restarts
 - _cleanup_old_tasks(tasks_dict, tasks_lock, max_age) — removes tasks older than max_age (default 1h)
 - yf_rate_limit_wait() — 2s cooldown between Yahoo Finance requests
-- get_cached_yfinance(key, ttl) — thread-safe cache read with snapshot-based eviction
-- set_cached_yfinance(key, val) — thread-safe cache write with async disk save
+- get_cached_yfinance(key, ttl) — thread-safe Peewee-backed cache read; lazy eviction of records older than 24h triggered with 5% probability per call (`random.random() < 0.05`)
+- set_cached_yfinance(key, val) — Peewee upsert via `INSERT ... ON CONFLICT(key) PRESERVE data, updated_at`
 
 ## Conventions
 - Use Optional[X] = None for optional params
@@ -64,7 +65,6 @@ List ALL endpoints with their methods, paths, and brief descriptions:
 - Model changes persisted to `.env` via `_persist_model_to_env()` — survives backend restart
 - Task dicts (scan_tasks, deep_research_tasks) have `created_at` timestamps and are cleaned up after 1h via `_cleanup_old_tasks()`
 - Error responses cached with fixed 60s TTL (not dynamic TTL) to avoid repeated failed requests
-- Dict eviction uses `list(_yfinance_cache.items())` snapshot to prevent RuntimeError during iteration
 - Cache hit in `get_stock_data`: `if cached: return cached` — translation check is separate block (no infinite loop)
-- Market overview: all return statements inside `with _market_overview_lock:` block (race condition fix)
+- Market overview: double-check locking pattern — cache-hit check under `_market_overview_lock`, fetch outside the lock, atomic write under lock on completion
 - DeepResearch scoring: uses `period="1mo"` (not 5d), includes RSI(14), SMA20 trend, weekly change, volume power
