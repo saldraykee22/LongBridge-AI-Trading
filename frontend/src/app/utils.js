@@ -30,5 +30,6 @@ export const getBadgeClass = (signal) => {
   if (sig.includes("AL")) return "badge-buy";
   if (sig.includes("GÜÇLÜ SAT")) return "badge-strong-sell";
   if (sig.includes("SAT")) return "badge-sell";
+  if (sig.includes("TUT") || sig.includes("NÖTR")) return "badge-hold";
   return "badge-neutral";
 };

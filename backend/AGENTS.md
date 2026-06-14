@@ -29,14 +29,19 @@ List ALL endpoints with their methods, paths, and brief descriptions:
 ## Data Flow
 - yfinance fetches stock data, chart, news
 - litellm.completion for AI analysis and chat
-- extract_json() for LLM response parsing (3 layers)
+- extract_json() for LLM response parsing (2 layers)
 - chat_store for session management
 
 ## Key Functions
-- format_ticker(ticker) — appends .IS for BIST if ticker >= 2 chars
-- extract_json(text) — 3-layer JSON extraction
+- format_ticker(ticker) — appends .IS for BIST if ticker is 5 chars or in BIST company list; len <= 3 tickers never get .IS (US stocks safe)
+- extract_json(text) — 2-layer JSON extraction (direct parse + balanced braces)
 - get_stock_analysis(ticker, model) — multi-agent analysis with retry
 - _get_litellm_kwargs(model) — routes opencode/ (Zen) and opencode-go/ (Go) to custom api_base
+- _persist_model_to_env(model) — writes model change to .env file for persistence across restarts
+- _cleanup_old_tasks(tasks_dict, tasks_lock, max_age) — removes tasks older than max_age (default 1h)
+- yf_rate_limit_wait() — 2s cooldown between Yahoo Finance requests
+- get_cached_yfinance(key, ttl) — thread-safe cache read with snapshot-based eviction
+- set_cached_yfinance(key, val) — thread-safe cache write with async disk save
 
 ## Conventions
 - Use Optional[X] = None for optional params
@@ -48,10 +53,18 @@ List ALL endpoints with their methods, paths, and brief descriptions:
 - API keys from .env via load_dotenv()
 
 ## Gotchas
-- `format_ticker` >= 2 threshold: 2-char US tickers get .IS suffix (known limitation)
+- `format_ticker` now uses `len <= 3` guard — 2-3 char US tickers (AI, GE, V, MA) never get .IS suffix
 - yfinance timeout set globally via requests.Session patch (30s)
+- Yahoo Finance rate limiter: `yf_rate_limit_wait()` enforces 2s cooldown between requests
 - LLM JSON extraction uses 2 attempts with increasingly strict prompts
 - Chat session TTL defaults to 3600s, configurable via CHAT_SESSION_TTL env
-- CORS origins from ALLOWED_ORIGINS env var (comma-separated)
+- CORS origins from ALLOWED_ORIGINS env var (comma-separated), methods restricted to GET/POST/OPTIONS
 - OpenCode Zen/Go models: prefix `opencode/` or `opencode-go/` → `_get_litellm_kwargs` maps to openai provider with custom api_base
 - `.env` vars: `OPENCODE_ZEN_API_KEY`, `OPENCODE_GO_API_KEY`, `OPENCODE_ZEN_API_BASE`, `OPENCODE_GO_API_BASE`
+- Model changes persisted to `.env` via `_persist_model_to_env()` — survives backend restart
+- Task dicts (scan_tasks, deep_research_tasks) have `created_at` timestamps and are cleaned up after 1h via `_cleanup_old_tasks()`
+- Error responses cached with fixed 60s TTL (not dynamic TTL) to avoid repeated failed requests
+- Dict eviction uses `list(_yfinance_cache.items())` snapshot to prevent RuntimeError during iteration
+- Cache hit in `get_stock_data`: `if cached: return cached` — translation check is separate block (no infinite loop)
+- Market overview: all return statements inside `with _market_overview_lock:` block (race condition fix)
+- DeepResearch scoring: uses `period="1mo"` (not 5d), includes RSI(14), SMA20 trend, weekly change, volume power

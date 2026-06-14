@@ -43,7 +43,7 @@ export default function Watchlist({ watchlist, ticker, setTicker, toggleWatchlis
                 }}
               >
                 <span>{sym}</span>
-                <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>BIST</span>
+                <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>{(() => { if (sym.includes("-USD") || sym.includes("-TRY")) return "Kripto"; if (/^[A-Z]{1,5}$/.test(sym) && sym.length <= 4) return "US"; return "BIST"; })()}</span>
               </button>
               <button
                 onClick={(e) => {

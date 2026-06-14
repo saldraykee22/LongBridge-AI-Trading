@@ -23,19 +23,37 @@ import RAGChat from "./components/RAGChat";
 import StockDetail from "./components/StockDetail";
 import Screener from "./components/Screener";
 import DeepResearch from "./components/DeepResearch";
+import { useSearch } from "./hooks/useSearch";
+import { useStockData } from "./hooks/useStockData";
 
 export default function Home() {
-  const [ticker, setTicker] = useState("THYAO");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [stockData, setStockData] = useState(null);
-  const [chartData, setChartData] = useState([]);
-  const [period, setPeriod] = useState("1mo");
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [analysisLoading, setAnalysisLoading] = useState(true);
-  const [error, setError] = useState("");
-  
+  const {
+    ticker,
+    setTicker,
+    stockData,
+    setStockData,
+    chartData,
+    setChartData,
+    period,
+    setPeriod,
+    analysis,
+    loading,
+    analysisLoading,
+    error,
+    setError,
+    fetchStockDetails,
+    fetchChart,
+    fetchAnalysis
+  } = useStockData();
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    suggestions,
+    setSuggestions,
+    searchContainerRef
+  } = useSearch();
+
   // Chat state
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -43,9 +61,6 @@ export default function Home() {
   const [sessionId, setSessionId] = useState(null);
   const sessionIdRef = useRef(null);
   const chatEndRef = useRef(null);
-  const requestIdRef = useRef(0);
-  const stockRequestControllerRef = useRef(null);
-  const chartRequestControllerRef = useRef(null);
   const marketRequestControllerRef = useRef(null);
 
   // Watchlist state
@@ -67,9 +82,6 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState(null);
   const [recsLoading, setRecsLoading] = useState(false);
   const [activeRecsTab, setActiveRecsTab] = useState("bist"); // "bist", "nasdaq", "crypto"
-
-  // Search autocomplete container ref
-  const searchContainerRef = useRef(null);
 
   // Scroll reference for chat
 
@@ -96,96 +108,20 @@ export default function Home() {
       } else {
         updated = [...prev, sym];
       }
-      localStorage.setItem("bistWatchlist", JSON.stringify(updated));
+      try { localStorage.setItem("bistWatchlist", JSON.stringify(updated)); } catch (_) {}
       return updated;
     });
   }, []);
 
-  const fetchAnalysis = useCallback(async (symbol, force = false) => {
-    const currentId = ++requestIdRef.current;
-    setAnalysisLoading(true);
-    try {
-      const url = `/api/stock/${symbol}/analysis` + (force ? "?force_refresh=true" : "");
-      const analysisRes = await fetch(url);
-      if (currentId !== requestIdRef.current) return;
-      if (analysisRes.ok) {
-        const data = await analysisRes.json();
-        if (currentId === requestIdRef.current) {
-          setAnalysis(data);
-        }
-      } else if (currentId === requestIdRef.current) {
-        setAnalysis(null);
-      }
-    } catch (err) {
-      if (currentId === requestIdRef.current) {
-        setAnalysis(null);
-      }
-    } finally {
-      if (currentId === requestIdRef.current) {
-        setAnalysisLoading(false);
-      }
-    }
-  }, []);
+  
 
-  const fetchStockDetails = useCallback(async (symbol) => {
-    if (stockRequestControllerRef.current) {
-      stockRequestControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    stockRequestControllerRef.current = controller;
-    setLoading(true);
-    setAnalysisLoading(true);
-    setError("");
-    try {
-      const detailsRes = await fetch(`/api/stock/${symbol}`, { signal: controller.signal });
-      if (!detailsRes.ok) throw new Error("Hisse senedi verisi bulunamadı.");
-      const details = await detailsRes.json();
-      if (controller.signal.aborted) return;
-      setStockData(details);
+  
 
-      fetchAnalysis(symbol, false);
-
-      setMessages([
-        {
-          role: "assistant",
-          content: `Merhaba! Ben LongBridge AI Analistiniz. **${symbol.toUpperCase()}** hissesini incelemeye hazırım. Teknik, temel verileri ve haberleri kullanarak hisse senedini analiz ettim. Hisse hakkında merak ettiğiniz her şeyi bana sorabilirsiniz.`
-        }
-      ]);
-
-    } catch (err) {
-      if (err.name === "AbortError") return;
-      setError(err.message || "Bir hata oluştu.");
-      setStockData(null);
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
-    }
-  }, [fetchAnalysis]);
-
-  const fetchChart = useCallback(async (symbol, timePeriod) => {
-    if (chartRequestControllerRef.current) {
-      chartRequestControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    chartRequestControllerRef.current = controller;
-    try {
-      const chartRes = await fetch(`/api/stock/${symbol}/chart?period=${timePeriod}`, { signal: controller.signal });
-      if (chartRes.ok) {
-        const data = await chartRes.json();
-        if (!controller.signal.aborted) {
-          setChartData(data);
-        }
-      }
-    } catch (err) {
-      if (err.name === "AbortError") return;
-      console.error("Grafik verisi yüklenemedi:", err);
-    }
-  }, []);
+  
 
   useEffect(() => {
     queueMicrotask(() => {
-      fetchStockDetails(ticker);
+      fetchStockDetails(ticker, setMessages);
     });
   }, [ticker, fetchStockDetails]);
 
@@ -194,46 +130,15 @@ export default function Home() {
       setChartData([]);
       fetchChart(ticker, period);
     });
-  }, [ticker, period, fetchChart]);
+  }, [ticker, period, fetchChart, setChartData]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Autocomplete debounced search
-  useEffect(() => {
-    if (searchQuery.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
+  
 
-    const delayDebounceFn = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/stock/search?query=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
-        }
-      } catch (err) {
-        console.error("Arama önerileri yüklenemedi:", err);
-      }
-    }, 250);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  // Click outside search container to close suggestions
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setSuggestions([]);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  
 
   const initSession = useCallback(async () => {
     let sid = localStorage.getItem("longbridgeChatSessionId");
@@ -246,7 +151,7 @@ export default function Home() {
           return;
         }
       } catch (_) {}
-      localStorage.removeItem("longbridgeChatSessionId");
+      try { localStorage.removeItem("longbridgeChatSessionId"); } catch (_) {}
     }
     try {
       const res = await fetch("/api/chat/session", { method: "POST" });
@@ -254,7 +159,7 @@ export default function Home() {
         const data = await res.json();
         setSessionId(data.session_id);
         sessionIdRef.current = data.session_id;
-        localStorage.setItem("longbridgeChatSessionId", data.session_id);
+        try { localStorage.setItem("longbridgeChatSessionId", data.session_id); } catch (_) {}
       }
     } catch (_) {}
   }, []);
@@ -359,7 +264,7 @@ export default function Home() {
     if (searchQuery.trim()) {
       const newTicker = searchQuery.toUpperCase().trim();
       if (newTicker === ticker) {
-        fetchStockDetails(ticker);
+        fetchStockDetails(ticker, setMessages);
       } else {
         setTicker(newTicker);
       }
@@ -375,7 +280,7 @@ export default function Home() {
         const sessionData = await sessionRes.json();
         setSessionId(sessionData.session_id);
         sessionIdRef.current = sessionData.session_id;
-        localStorage.setItem("longbridgeChatSessionId", sessionData.session_id);
+        try { localStorage.setItem("longbridgeChatSessionId", sessionData.session_id); } catch (_) {}
         return sessionData.session_id;
       }
     } catch (_) {}
@@ -413,9 +318,20 @@ export default function Home() {
 
       if (res.ok) {
         const data = await res.json();
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        if (data.ticker_changed) {
+          setMessages((prev) => {
+            const userMsg = prev[prev.length - 1];
+            return [
+              { role: "assistant", content: `Bağlam **${ticker}** hissesine geçildi. Sohbet geçmişi sıfırlandı.` },
+              userMsg,
+              { role: "assistant", content: data.reply }
+            ];
+          });
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        }
       } else if (res.status === 404) {
-        localStorage.removeItem("longbridgeChatSessionId");
+        try { localStorage.removeItem("longbridgeChatSessionId"); } catch (_) {}
         const newSid = await createNewLocalSession();
         if (newSid) {
           setMessages((prev) => [...prev, { role: "assistant", content: "Oturum süresi doldu, yeni bir sohbet başlatıldı. Sorunuzu tekrar sorabilir misiniz?" }]);

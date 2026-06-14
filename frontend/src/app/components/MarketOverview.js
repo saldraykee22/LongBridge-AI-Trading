@@ -25,7 +25,7 @@ export default function MarketOverview({ marketOverview, marketLoading, formatVa
                     </span>
                   </div>
                   <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.5rem" }}>
-                    {idx.price.toLocaleString("tr-TR")} {idx.symbol.includes("TRY") ? "TL" : idx.symbol.includes("GC") ? "$" : ""}
+                    {formatVal(idx.price, "currency", idx.currency || (idx.symbol.includes("TRY") ? "TRY" : "USD"))}
                   </div>
                 </div>
               ))}

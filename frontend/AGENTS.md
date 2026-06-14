@@ -33,7 +33,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## State Management Patterns
 - **Stale request guard**: `requestIdRef` pattern for fetchAnalysis
-- **Session persistence**: sessionId in localStorage key `bistChatSessionId`
+- **Session persistence**: sessionId in localStorage key `longbridgeChatSessionId`
 - **Same-ticker refresh**: `fetchStockDetails(ticker)` called directly from search handler
 - **Period change**: `setChartData([])` before fetchChart in useEffect
 
@@ -63,3 +63,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - OpenCode Go: `opencode-go/<model-id>` → backend routes to `https://opencode.ai/zen/go/v1`
 - Backend `/api/config` GET/POST for active model
 - Toast notification on successful model change (3s auto-dismiss)
+- Default model: `opencode-go/deepseek-v4-flash` (Go) — set in both useState and previousModelRef
+
+## Gotchas
+- DeepResearch chart: backend returns plain array, use `setChartData(data)` NOT `setChartData(data.history || [])`
+- localStorage access must be wrapped in try-catch for privacy mode compatibility
+- Crypto prices in MarketOverview use `formatVal(price, "currency", "USD")` for consistent formatting
+- `previousModelRef.current = activeModel` must be set at the very beginning of handleModelChange (before async ops) to avoid stale closure

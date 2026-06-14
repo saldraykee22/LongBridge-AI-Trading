@@ -213,6 +213,11 @@ a {
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
+.badge-hold {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
 /* Chat Styles */
 .chat-container {
   display: flex;

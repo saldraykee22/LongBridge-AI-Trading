@@ -83,7 +83,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
         )}
 
         <div className="chart-tabs">
-          {["5d", "1mo", "3mo", "6mo", "1y"].map((p) => (
+          {["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"].map((p) => (
             <button
               key={p}
               className={`chart-tab ${period === p ? "active" : ""}`}
