@@ -9,6 +9,7 @@ on every access (lazy eviction).
 import os
 import time
 import uuid
+import random
 from typing import Optional
 from models import ChatSession, db
 from loguru import logger
@@ -39,11 +40,9 @@ class ChatStore:
         return sid
 
     def exists(self, sid: str) -> bool:
-        self._cleanup()
         return ChatSession.select().where(ChatSession.session_id == sid).exists()
 
     def get_messages(self, sid: str) -> list[dict]:
-        self._cleanup()
         try:
             session = ChatSession.get(ChatSession.session_id == sid)
             return list(session.messages) if session.messages else []
@@ -51,15 +50,42 @@ class ChatStore:
             return []
 
     def get_current_ticker(self, sid: str) -> Optional[str]:
-        self._cleanup()
         try:
             session = ChatSession.get(ChatSession.session_id == sid)
             return session.current_ticker
         except ChatSession.DoesNotExist:
             return None
 
+    def get_mode(self, sid: str) -> str:
+        """Returns the session's chat mode. Defaults to 'ticker' for legacy
+        sessions that pre-date the independent-chat feature.
+        """
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
+            return session.mode or "ticker"
+        except ChatSession.DoesNotExist:
+            return "ticker"
+
+    def set_mode(self, sid: str, mode: str) -> bool:
+        """Switch a session between 'ticker' and 'independent' modes. Switching
+        to 'independent' clears current_ticker; switching back to 'ticker'
+        preserves message history (caller can decide to reset).
+        """
+        if mode not in ("ticker", "independent"):
+            return False
+        try:
+            with db.atomic():
+                session = ChatSession.get(ChatSession.session_id == sid)
+                if mode == "independent":
+                    session.current_ticker = None
+                session.mode = mode
+                session.last_active = time.time()
+                session.save()
+            return True
+        except ChatSession.DoesNotExist:
+            return False
+
     def touch(self, sid: str) -> bool:
-        self._cleanup()
         try:
             session = ChatSession.get(ChatSession.session_id == sid)
             session.last_active = time.time()
@@ -69,7 +95,6 @@ class ChatStore:
             return False
 
     def reset_messages(self, sid: str) -> bool:
-        self._cleanup()
         try:
             session = ChatSession.get(ChatSession.session_id == sid)
             session.messages = []
@@ -85,7 +110,6 @@ class ChatStore:
 
         Returns (session_exists, did_reset).
         """
-        self._cleanup()
         try:
             session = ChatSession.get(ChatSession.session_id == sid)
             did_reset = False
@@ -117,7 +141,6 @@ class ChatStore:
 
     def rollback_last_message(self, sid: str, role: str, content: str) -> bool:
         """Rollback the last message in the session if it matches the role and content."""
-        self._cleanup()
         try:
             with db.atomic():
                 session = ChatSession.get(ChatSession.session_id == sid)
@@ -141,11 +164,12 @@ class ChatStore:
         }
 
     def _cleanup(self) -> None:
-        now = time.time()
-        expiry_threshold = now - self._ttl
-        # Using execute() correctly for Peewee delete queries
-        deleted = ChatSession.delete().where(ChatSession.last_active <= expiry_threshold).execute()
-        if deleted > 0:
-            logger.info(f"Cleaned up {deleted} expired chat sessions.")
+        if random.random() < 0.05:  # Run cleanup with 5% probability
+            now = time.time()
+            expiry_threshold = now - self._ttl
+            # Using execute() correctly for Peewee delete queries
+            deleted = ChatSession.delete().where(ChatSession.last_active <= expiry_threshold).execute()
+            if deleted > 0:
+                logger.info(f"Cleaned up {deleted} expired chat sessions.")
 
 chat_store = ChatStore()

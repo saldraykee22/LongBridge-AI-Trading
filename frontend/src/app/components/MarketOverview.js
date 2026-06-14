@@ -21,7 +21,7 @@ export default function MarketOverview({ marketOverview, marketLoading, formatVa
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span style={{ fontSize: "0.85rem", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>{idx.name}</span>
                     <span className={`badge ${idx.change >= 0 ? "badge-buy" : "badge-sell"}`} style={{ fontSize: "0.75rem", fontWeight: "700" }}>
-                      {idx.change >= 0 ? "+" : ""}{idx.change}%
+                      {idx.change >= 0 ? "+" : ""}{idx.change ?? 0}%
                     </span>
                   </div>
                   <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.5rem" }}>
@@ -40,7 +40,7 @@ export default function MarketOverview({ marketOverview, marketLoading, formatVa
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span style={{ fontSize: "0.85rem", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>{crypto.name}</span>
                     <span className={`badge ${crypto.change >= 0 ? "badge-buy" : "badge-sell"}`} style={{ fontSize: "0.75rem", fontWeight: "700" }}>
-                      {crypto.change >= 0 ? "+" : ""}{crypto.change}%
+                      {crypto.change >= 0 ? "+" : ""}{crypto.change ?? 0}%
                     </span>
                   </div>
                   <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.5rem" }}>
@@ -74,7 +74,7 @@ export default function MarketOverview({ marketOverview, marketLoading, formatVa
                   <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                     <span style={{ fontWeight: "700" }}>{formatVal(stk.price, "currency", stk.currency || "TRY")}</span>
                     <span className={`badge ${stk.change >= 0 ? "badge-buy" : "badge-sell"}`} style={{ minWidth: "65px", textAlign: "center" }}>
-                      {stk.change >= 0 ? "+" : ""}{stk.change}%
+                      {stk.change >= 0 ? "+" : ""}{stk.change ?? 0}%
                     </span>
                     <button
                       className="btn btn-secondary"

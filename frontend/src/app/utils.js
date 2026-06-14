@@ -1,6 +1,10 @@
 export const formatVal = (val, type, currency = "TRY") => {
   if (val === null || val === undefined || val === "Bilinmiyor") return "-";
-  if (type === "percent") return `%${(val * 100).toFixed(2)}`;
+  if (typeof val !== 'number') return String(val);
+  if (type === "percent") {
+    const pct = (val * 100).toFixed(2);
+    return `${pct}%`;
+  }
 
   const symbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : "TL";
   const isPrefix = symbol === "$" || symbol === "€";
@@ -14,6 +18,10 @@ export const formatVal = (val, type, currency = "TRY") => {
       if (val >= 1e12) return `$${(val / 1e12).toFixed(2)} Trilyon`;
       if (val >= 1e9) return `$${(val / 1e9).toFixed(2)} Milyar`;
       return `$${val.toLocaleString("tr-TR")}`;
+    } else if (currency === "EUR") {
+      if (val >= 1e12) return `€${(val / 1e12).toFixed(2)} Trilyon`;
+      if (val >= 1e9) return `€${(val / 1e9).toFixed(2)} Milyar`;
+      return `€${val.toLocaleString("tr-TR")}`;
     } else {
       if (val >= 1e12) return `${(val / 1e12).toFixed(2)} Trilyon TL`;
       if (val >= 1e9) return `${(val / 1e9).toFixed(2)} Milyar TL`;

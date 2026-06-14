@@ -18,6 +18,14 @@ const SCREENER_PRESETS = {
     { id: "most_active", label: "En Çok İşlem Görenler" },
     { id: "value_stocks", label: "Piyasa Değeri Sıralaması" }
   ],
+  germany: [
+    { id: "day_gainers", label: "En Çok Yükselenler" },
+    { id: "day_losers", label: "En Çok Düşenler" },
+    { id: "most_active", label: "En Yüksek Hacim" },
+    { id: "value_stocks", label: "Değer Hisseleri" },
+    { id: "dividend_stocks", label: "Temettü Şampiyonları" },
+    { id: "growth_stocks", label: "Büyüme Hisseleri" }
+  ],
   bist: [
     { id: "day_gainers", label: "En Çok Yükselenler" },
     { id: "day_losers", label: "En Çok Düşenler" },
@@ -41,6 +49,12 @@ const PRESET_DESCRIPTIONS = {
   "us_growth_stocks": "ABD borsalarındaki teknoloji ve yüksek büyüme hisseleri.",
   "us_value_stocks": "İskontolu büyük ölçekli ABD değer hisseleri.",
   "us_dividend_stocks": "Temettü verimi yüksek köklü ABD şirketleri.",
+  "germany_day_gainers": "Almanya borsasındaki günün en çok yükselen şirketleri.",
+  "germany_day_losers": "Almanya borsasındaki günün en çok düşen şirketleri.",
+  "germany_most_active": "Almanya borsasındaki günlük işlem hacmi en yüksek şirketler.",
+  "germany_value_stocks": "F/K ve PD/DD oranları düşük, ucuz Almanya (DAX) şirketleri.",
+  "germany_dividend_stocks": "Almanya'da düzenli temettü ödeme alışkanlığı olan şirketler.",
+  "germany_growth_stocks": "Almanya borsasındaki teknoloji ve yüksek büyüme hisseleri.",
   "crypto_day_gainers": "En büyük kripto paralar arasında son 24 saatte en çok yükselenler.",
   "crypto_day_losers": "En büyük kripto paralar arasında son 24 saatte en çok düşenler.",
   "crypto_most_active": "Son 24 saatlik işlem hacmi en yüksek kripto paralar.",
@@ -79,6 +93,7 @@ export default function Screener({
         {[
           { id: "bist", label: "BIST (Borsa İstanbul)" },
           { id: "us", label: "Amerikan Borsaları (US)" },
+          { id: "germany", label: "Almanya Borsası (Xetra)" },
           { id: "crypto", label: "Kripto Paralar" }
         ].map((m) => (
           <button
@@ -121,7 +136,7 @@ export default function Screener({
                 <div>
                   <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "700" }}>{stk.name}</h4>
                   <span style={{ fontSize: "0.8rem", color: "var(--secondary-foreground)", opacity: 0.8, fontWeight: "600" }}>
-                    {stk.symbol} {screenerMarket === "bist" ? "(BIST)" : screenerMarket === "us" ? "(US)" : "(Kripto)"}
+                    {stk.symbol} {screenerMarket === "bist" ? "(BIST)" : screenerMarket === "us" ? "(US)" : screenerMarket === "germany" ? "(Almanya)" : "(Kripto)"}
                   </span>
                 </div>
                 <span className={`badge ${stk.change >= 0 ? "badge-buy" : "badge-sell"}`} style={{ fontSize: "0.75rem", fontWeight: "700" }}>

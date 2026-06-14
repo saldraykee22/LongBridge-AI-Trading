@@ -11,15 +11,21 @@ export function useStockData() {
   const [error, setError] = useState("");
 
   const requestIdRef = useRef(0);
+  const analysisControllerRef = useRef(null);
   const stockRequestControllerRef = useRef(null);
   const chartRequestControllerRef = useRef(null);
 
   const fetchAnalysis = useCallback(async (symbol, force = false) => {
+    if (analysisControllerRef.current) {
+      analysisControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    analysisControllerRef.current = controller;
     const currentId = ++requestIdRef.current;
     setAnalysisLoading(true);
     try {
       const url = `/api/stock/${symbol}/analysis` + (force ? "?force_refresh=true" : "");
-      const analysisRes = await fetch(url);
+      const analysisRes = await fetch(url, { signal: controller.signal });
       if (currentId !== requestIdRef.current) return;
       if (analysisRes.ok) {
         const data = await analysisRes.json();
@@ -30,6 +36,7 @@ export function useStockData() {
         setAnalysis(null);
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       if (currentId === requestIdRef.current) {
         setAnalysis(null);
       }
@@ -72,6 +79,7 @@ export function useStockData() {
       setError(err.message || "Bir hata oluştu.");
       setStockData(null);
     } finally {
+      setAnalysisLoading(false);
       if (!controller.signal.aborted) {
         setLoading(false);
       }

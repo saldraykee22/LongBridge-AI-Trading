@@ -21,17 +21,23 @@ export default function Navbar() {
   const [showToast, setShowToast] = useState(false);
   const abortControllerRef = useRef(null);
   const previousModelRef = useRef("opencode-go/deepseek-v4-flash");
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
-    // Get current config from backend
-    fetch("/api/config")
+    const controller = new AbortController();
+    fetch("/api/config", { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
         if (data.active_model) {
           setActiveModel(data.active_model);
         }
       })
-      .catch((err) => console.error("Model yapılandırması yüklenemedi:", err));
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error("Model yapılandırması yüklenemedi:", err);
+        }
+      });
+    return () => controller.abort();
   }, []);
 
   const handleModelChange = useCallback(async (e) => {
@@ -56,7 +62,7 @@ export default function Navbar() {
       if (res.ok) {
         setActiveModel(selected);
         setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
+        toastTimerRef.current = setTimeout(() => setShowToast(false), 3000);
       }
     } catch (err) {
       if (err.name !== "AbortError") {
@@ -65,6 +71,14 @@ export default function Navbar() {
       }
     }
   }, [activeModel]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <nav className="navbar glass" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>

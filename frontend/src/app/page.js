@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { 
-  Search, 
-  Send, 
-  RefreshCw, 
-  AlertCircle, 
-  Activity, 
+import {
+  Search,
+  Send,
+  RefreshCw,
+  AlertCircle,
+  Activity,
   BookOpen,
   FileText,
   Newspaper,
@@ -14,7 +14,8 @@ import {
   LayoutDashboard,
   Compass,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  MessageCircle
 } from "lucide-react";
 import { formatVal, getBadgeClass } from "./utils";
 import Watchlist from "./components/Watchlist";
@@ -23,6 +24,7 @@ import RAGChat from "./components/RAGChat";
 import StockDetail from "./components/StockDetail";
 import Screener from "./components/Screener";
 import DeepResearch from "./components/DeepResearch";
+import IndependentChat from "./components/IndependentChat";
 import { useSearch } from "./hooks/useSearch";
 import { useStockData } from "./hooks/useStockData";
 
@@ -54,23 +56,14 @@ export default function Home() {
     searchContainerRef
   } = useSearch();
 
-  // Chat state
-  const [messages, setMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
-  const sessionIdRef = useRef(null);
-  const chatEndRef = useRef(null);
-  const marketRequestControllerRef = useRef(null);
-
   // Watchlist state
   const [watchlist, setWatchlist] = useState(["THYAO", "ASELS", "EREGL", "TUPRS", "GARAN"]);
 
   // Navigation and dashboard state
-  const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard", "analysis", "strategy", "screener"
+  const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard", "analysis", "strategy", "screener", "discover", "chat"
   const [marketOverview, setMarketOverview] = useState(null);
   const [marketLoading, setMarketLoading] = useState(false);
-  const [screenerMarket, setScreenerMarket] = useState("bist"); // "bist", "us", "crypto"
+  const [screenerMarket, setScreenerMarket] = useState("bist");
   const [screenerPreset, setScreenerPreset] = useState("value_stocks");
   const [screenerData, setScreenerData] = useState([]);
   const [screenerLoading, setScreenerLoading] = useState(false);
@@ -81,20 +74,19 @@ export default function Home() {
   // Recommendations state
   const [recommendations, setRecommendations] = useState(null);
   const [recsLoading, setRecsLoading] = useState(false);
-  const [activeRecsTab, setActiveRecsTab] = useState("bist"); // "bist", "nasdaq", "crypto"
+  const [activeRecsTab, setActiveRecsTab] = useState("bist");
 
-  // Scroll reference for chat
-
-  const scrollToBottom = useCallback(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  const marketRequestControllerRef = useRef(null);
+  const screenerControllerRef = useRef(null);
+  const aiRankingsControllerRef = useRef(null);
+  const recsControllerRef = useRef(null);
 
   // Watchlist handlers
   useEffect(() => {
     try {
       const saved = localStorage.getItem("bistWatchlist");
       if (saved) {
-        setWatchlist(JSON.parse(saved));
+        queueMicrotask(() => setWatchlist(JSON.parse(saved)));
       }
     } catch (_) {}
   }, []);
@@ -113,15 +105,9 @@ export default function Home() {
     });
   }, []);
 
-  
-
-  
-
-  
-
   useEffect(() => {
     queueMicrotask(() => {
-      fetchStockDetails(ticker, setMessages);
+      fetchStockDetails(ticker);
     });
   }, [ticker, fetchStockDetails]);
 
@@ -131,44 +117,6 @@ export default function Home() {
       fetchChart(ticker, period);
     });
   }, [ticker, period, fetchChart, setChartData]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  
-
-  
-
-  const initSession = useCallback(async () => {
-    let sid = localStorage.getItem("longbridgeChatSessionId");
-    if (sid) {
-      try {
-        const res = await fetch(`/api/chat/session/${sid}`);
-        if (res.ok) {
-          setSessionId(sid);
-          sessionIdRef.current = sid;
-          return;
-        }
-      } catch (_) {}
-      try { localStorage.removeItem("longbridgeChatSessionId"); } catch (_) {}
-    }
-    try {
-      const res = await fetch("/api/chat/session", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        setSessionId(data.session_id);
-        sessionIdRef.current = data.session_id;
-        try { localStorage.setItem("longbridgeChatSessionId", data.session_id); } catch (_) {}
-      }
-    } catch (_) {}
-  }, []);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      initSession();
-    });
-  }, [initSession]);
 
   // Fetch market overview
   const fetchMarketOverview = useCallback(async () => {
@@ -196,52 +144,79 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch screener data
   const fetchScreenerData = useCallback(async (market, preset) => {
+    if (screenerControllerRef.current) {
+      screenerControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    screenerControllerRef.current = controller;
     setScreenerLoading(true);
     try {
-      const res = await fetch(`/api/market/screener?market=${market}&preset=${preset}`);
+      const res = await fetch(`/api/market/screener?market=${market}&preset=${preset}`, { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
-        setScreenerData(data);
+        if (!controller.signal.aborted) {
+          setScreenerData(data);
+        }
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       console.error("Screener loading failed:", err);
     } finally {
-      setScreenerLoading(false);
+      if (!controller.signal.aborted) {
+        setScreenerLoading(false);
+      }
     }
   }, []);
 
-  // Fetch AI rankings
   const fetchAiRankings = useCallback(async () => {
+    if (aiRankingsControllerRef.current) {
+      aiRankingsControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    aiRankingsControllerRef.current = controller;
     setAiRankingsLoading(true);
     try {
-      const res = await fetch("/api/market/ai-ranking");
+      const res = await fetch("/api/market/ai-ranking", { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
-        setAiRankings(data.rankings || []);
-        setAiCommentary(data.commentary || "");
+        if (!controller.signal.aborted) {
+          setAiRankings(data.rankings || []);
+          setAiCommentary(data.commentary || "");
+        }
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       console.error("AI Rankings loading failed:", err);
     } finally {
-      setAiRankingsLoading(false);
+      if (!controller.signal.aborted) {
+        setAiRankingsLoading(false);
+      }
     }
   }, []);
 
-  // Fetch AI Investment Recommendations
   const fetchRecommendations = useCallback(async () => {
+    if (recsControllerRef.current) {
+      recsControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    recsControllerRef.current = controller;
     setRecsLoading(true);
     try {
-      const res = await fetch("/api/market/recommendations");
+      const res = await fetch("/api/market/recommendations", { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
-        setRecommendations(data);
+        if (!controller.signal.aborted) {
+          setRecommendations(data);
+        }
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       console.error("Recommendations loading failed:", err);
     } finally {
-      setRecsLoading(false);
+      if (!controller.signal.aborted) {
+        setRecsLoading(false);
+      }
     }
   }, []);
 
@@ -264,88 +239,12 @@ export default function Home() {
     if (searchQuery.trim()) {
       const newTicker = searchQuery.toUpperCase().trim();
       if (newTicker === ticker) {
-        fetchStockDetails(ticker, setMessages);
+        fetchStockDetails(ticker);
       } else {
         setTicker(newTicker);
       }
       setSearchQuery("");
       setSuggestions([]);
-    }
-  };
-
-  const createNewLocalSession = useCallback(async () => {
-    try {
-      const sessionRes = await fetch("/api/chat/session", { method: "POST" });
-      if (sessionRes.ok) {
-        const sessionData = await sessionRes.json();
-        setSessionId(sessionData.session_id);
-        sessionIdRef.current = sessionData.session_id;
-        try { localStorage.setItem("longbridgeChatSessionId", sessionData.session_id); } catch (_) {}
-        return sessionData.session_id;
-      }
-    } catch (_) {}
-    return null;
-  }, []);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
-
-    const userMsg = { role: "user", content: chatInput };
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
-    setChatLoading(true);
-
-    try {
-      let sid = sessionIdRef.current;
-      if (!sid) {
-        sid = await createNewLocalSession();
-        if (!sid) {
-          setMessages((prev) => [...prev, { role: "assistant", content: "Oturum oluşturulamadı. Lütfen sayfayı yenileyin." }]);
-          return;
-        }
-      }
-
-      const res = await fetch("/api/chat/v2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sid,
-          message: userMsg.content,
-          ticker: ticker
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ticker_changed) {
-          setMessages((prev) => {
-            const userMsg = prev[prev.length - 1];
-            return [
-              { role: "assistant", content: `Bağlam **${ticker}** hissesine geçildi. Sohbet geçmişi sıfırlandı.` },
-              userMsg,
-              { role: "assistant", content: data.reply }
-            ];
-          });
-        } else {
-          setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-        }
-      } else if (res.status === 404) {
-        try { localStorage.removeItem("longbridgeChatSessionId"); } catch (_) {}
-        const newSid = await createNewLocalSession();
-        if (newSid) {
-          setMessages((prev) => [...prev, { role: "assistant", content: "Oturum süresi doldu, yeni bir sohbet başlatıldı. Sorunuzu tekrar sorabilir misiniz?" }]);
-        } else {
-          setMessages((prev) => [...prev, { role: "assistant", content: "Bağlantı hatası. Lütfen sayfayı yenileyin." }]);
-        }
-      } else {
-        const errText = await res.text();
-        setMessages((prev) => [...prev, { role: "assistant", content: `Hata: ${errText.slice(0, 150)}` }]);
-      }
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `Sunucu hatası: ${err.message || "Lütfen backend uygulamasının çalıştığından emin olun."}` }]);
-    } finally {
-      setChatLoading(false);
     }
   };
 
@@ -404,8 +303,8 @@ export default function Home() {
                     }}
                     className="search-suggestion-item"
                   >
-                    <span style={{ fontWeight: "700", fontSize: "0.85rem", color: "var(--primary)" }}>{item.symbol}</span>
-                    <span style={{ fontSize: "0.75rem", color: "#666", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{item.name}</span>
+                    <span style={{ fontWeight: "700", fontSize: "0.85rem", color: "var(--primary)" }}>{item.displaySymbol || item.symbol}</span>
+                    <span style={{ fontSize: "0.75rem", color: "#666", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{item.displayName || item.name}</span>
                   </button>
                 ))}
               </div>
@@ -424,7 +323,8 @@ export default function Home() {
           { id: "analysis", label: "Detaylı Analiz", icon: <Activity size={16} /> },
           { id: "strategy", label: "Strateji Raporları", icon: <Compass size={16} /> },
           { id: "screener", label: "Akıllı Arama", icon: <Sparkles size={16} /> },
-          { id: "discover", label: "Derin Araştırma (DeepResearch)", icon: <TrendingUp size={16} /> }
+          { id: "discover", label: "Derin Araştırma (DeepResearch)", icon: <TrendingUp size={16} /> },
+          { id: "chat", label: "AI Sohbet", icon: <MessageCircle size={16} /> }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -447,7 +347,6 @@ export default function Home() {
       {/* Tab Contents */}
       {activeTab === "dashboard" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-          {/* AI Market Commentary */}
           <div className="card glass animate-fade-in" style={{ borderLeft: "5px solid var(--primary)", background: "rgba(37, 99, 235, 0.03)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
               <Sparkles className="text-primary" size={20} />
@@ -467,7 +366,6 @@ export default function Home() {
 
           <MarketOverview marketOverview={marketOverview} marketLoading={marketLoading} formatVal={formatVal} setTicker={setTicker} setActiveTab={setActiveTab} />
 
-          {/* Yapay Zeka Yatırım Önerileri */}
             <div className="card glass" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -477,12 +375,12 @@ export default function Home() {
               <p style={{ margin: 0, fontSize: "0.8rem", color: "#666" }}>
                 Farklı piyasalarda yapay zekanın belirlediği en cazip yatırım fırsatları.
               </p>
-              
-              {/* Recommendations Tabs */}
+
               <div style={{ display: "flex", gap: "0.25rem", background: "rgba(0,0,0,0.03)", padding: "0.25rem", borderRadius: "calc(var(--radius) - 4px)" }}>
                 {[
                   { id: "bist", label: "BIST" },
                   { id: "nasdaq", label: "NASDAQ" },
+                  { id: "germany", label: "Almanya" },
                   { id: "crypto", label: "Kripto" }
                 ].map((t) => (
                   <button
@@ -625,7 +523,7 @@ export default function Home() {
                       <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: "1.5", color: "var(--foreground)" }}>{stk.long_term}</p>
                     </div>
                   </div>
-                  
+
                   {stk.plan && (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", background: "rgba(0,0,0,0.01)", padding: "1rem", borderRadius: "var(--radius)", border: "1px dashed var(--border)" }}>
                       <div>
@@ -645,7 +543,7 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  
+
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
                     <button
                       className="btn btn-primary"
@@ -695,6 +593,8 @@ export default function Home() {
         />
       )}
 
+      {activeTab === "chat" && <IndependentChat />}
+
       {activeTab === "analysis" && (
         <>
           {loading ? (
@@ -720,7 +620,7 @@ export default function Home() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
                 <Watchlist watchlist={watchlist} ticker={ticker} setTicker={setTicker} toggleWatchlist={toggleWatchlist} />
-                <RAGChat messages={messages} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendMessage={handleSendMessage} chatEndRef={chatEndRef} />
+                <RAGChat ticker={ticker} />
               </div>
             </div>
           ) : (

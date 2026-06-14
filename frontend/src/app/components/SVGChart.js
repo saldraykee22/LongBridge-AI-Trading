@@ -109,8 +109,8 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
           >
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.00" />
+                <stop offset="0%" style={{ stopColor: 'var(--primary)', stopOpacity: '0.25' }} />
+                <stop offset="100%" style={{ stopColor: 'var(--primary)', stopOpacity: '0.00' }} />
               </linearGradient>
             </defs>
 
@@ -125,8 +125,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                     y1={y}
                     x2={CHART_WIDTH - CHART_PADDING}
                     y2={y}
-                    stroke="var(--border)"
-                    strokeWidth={1}
+                    style={{ stroke: 'var(--border)', strokeWidth: 1 }}
                     strokeDasharray="4 4"
                   />
                   <text
@@ -134,7 +133,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                     y={y + 4}
                     textAnchor="end"
                     fontSize="0.7rem"
-                    fill="var(--secondary-foreground)"
+                    style={{ fill: 'var(--secondary-foreground)' }}
                     fontWeight="500"
                   >
                     {val.toFixed(1)}
@@ -151,8 +150,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
               <path
                 d={pathD}
                 fill="none"
-                stroke="var(--primary)"
-                strokeWidth={2.5}
+                style={{ stroke: 'var(--primary)', strokeWidth: 2.5 }}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -166,8 +164,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                   y1={CHART_PADDING}
                   x2={hoveredPoint.x}
                   y2={CHART_HEIGHT - CHART_PADDING}
-                  stroke="var(--primary)"
-                  strokeWidth={1.2}
+                  style={{ stroke: 'var(--primary)', strokeWidth: 1.2 }}
                   strokeDasharray="3 3"
                   opacity="0.8"
                 />
@@ -177,8 +174,7 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                   y1={hoveredPoint.y}
                   x2={CHART_WIDTH - CHART_PADDING}
                   y2={hoveredPoint.y}
-                  stroke="var(--primary)"
-                  strokeWidth={1.2}
+                  style={{ stroke: 'var(--primary)', strokeWidth: 1.2 }}
                   strokeDasharray="3 3"
                   opacity="0.8"
                 />
@@ -187,15 +183,13 @@ export default function SVGChart({ chartData, period, setPeriod, formatVal, curr
                   cx={hoveredPoint.x}
                   cy={hoveredPoint.y}
                   r={5}
-                  fill="var(--primary)"
-                  stroke="var(--foreground)"
-                  strokeWidth={1.5}
+                  style={{ fill: 'var(--primary)', stroke: 'var(--foreground)', strokeWidth: 1.5 }}
                 />
                 <circle
                   cx={hoveredPoint.x}
                   cy={hoveredPoint.y}
                   r={10}
-                  fill="var(--primary)"
+                  style={{ fill: 'var(--primary)' }}
                   opacity="0.15"
                 />
               </g>

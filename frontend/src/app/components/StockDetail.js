@@ -145,6 +145,42 @@ export default function StockDetail({
             </div>
           ) : analysis ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {/* AI News Sentiment Overview */}
+              {analysis.news_sentiment && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", padding: "1rem 1.25rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--secondary)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Newspaper size={16} className="text-primary" />
+                    <span style={{ fontSize: "0.85rem", fontWeight: "700" }}>Yapay Zeka Haber Algısı (Sentiment)</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                    <div style={{ flex: 1, height: "24px", borderRadius: "99px", background: "linear-gradient(to right, #ef4444, #f59e0b, #10b981)", position: "relative" }}>
+                      <div style={{
+                        position: "absolute",
+                        left: `${((analysis.news_sentiment.overall_score + 1) / 2) * 100}%`,
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "50%",
+                        backgroundColor: "white",
+                        border: "2px solid",
+                        borderColor: analysis.news_sentiment.overall_score >= 0.2 ? "#10b981" : analysis.news_sentiment.overall_score <= -0.2 ? "#ef4444" : "#f59e0b",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                        transition: "left 0.5s ease"
+                      }} />
+                    </div>
+                    <span style={{
+                      fontSize: "1.1rem",
+                      fontWeight: "800",
+                      color: analysis.news_sentiment.overall_score >= 0.6 ? "#10b981" : analysis.news_sentiment.overall_score >= 0.2 ? "#22c55e" : analysis.news_sentiment.overall_score <= -0.6 ? "#ef4444" : analysis.news_sentiment.overall_score <= -0.2 ? "#f97316" : "#f59e0b",
+                      whiteSpace: "nowrap"
+                    }}>
+                      %{Math.round(((analysis.news_sentiment.overall_score + 1) / 2) * 100)} {analysis.news_sentiment.overall_sentiment}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", borderBottom: "1px solid var(--border)", paddingBottom: "1.25rem" }}>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <BookOpen size={16} style={{ color: "var(--primary)", flexShrink: 0, marginTop: "0.2rem" }} />
@@ -226,6 +262,55 @@ export default function StockDetail({
                   ))}
                 </div>
               </div>
+
+              {/* Per-Article News Sentiment Analysis */}
+              {analysis.news_sentiment?.articles && analysis.news_sentiment.articles.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--secondary-foreground)" }}>HABER DETAY ANALİZİ</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {analysis.news_sentiment.articles.map((article, idx) => (
+                      <div key={idx} style={{
+                        display: "flex",
+                        gap: "0.75rem",
+                        padding: "0.75rem 1rem",
+                        borderRadius: "var(--radius)",
+                        border: "1px solid var(--border)",
+                        background: "var(--secondary)",
+                        alignItems: "flex-start"
+                      }}>
+                        <div style={{
+                          flexShrink: 0,
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.8rem",
+                          fontWeight: "800",
+                          backgroundColor: article.score >= 0.2 ? "rgba(16, 185, 129, 0.15)" : article.score <= -0.2 ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                          color: article.score >= 0.2 ? "#10b981" : article.score <= -0.2 ? "#ef4444" : "#f59e0b"
+                        }}>
+                          {article.score >= 0.2 ? "↑" : article.score <= -0.2 ? "↓" : "→"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "0.8rem", fontWeight: "600", color: "var(--foreground)", marginBottom: "0.2rem", lineHeight: "1.3" }}>{article.title}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--secondary-foreground)", lineHeight: "1.4" }}>
+                            <span style={{
+                              fontWeight: "700",
+                              color: article.score >= 0.2 ? "#10b981" : article.score <= -0.2 ? "#ef4444" : "#f59e0b",
+                              marginRight: "0.35rem"
+                            }}>
+                              [{article.score >= 0 ? `+${article.score.toFixed(2)}` : `${article.score.toFixed(2)}`}]
+                            </span>
+                            {article.explanation}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {analysis.strategy?.justification && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem", padding: "1.25rem", borderRadius: "var(--radius)", border: "1px dashed var(--primary)", background: "rgba(255, 255, 255, 0.015)" }}>

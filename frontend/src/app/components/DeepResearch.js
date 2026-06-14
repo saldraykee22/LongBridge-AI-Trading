@@ -40,6 +40,8 @@ export default function DeepResearch({
   const [chartLoading, setChartLoading] = useState(false);
 
   const progressIntervalRef = useRef(null);
+  const pollingAbortRef = useRef(null);
+  const scanAbortRef = useRef(null);
   const terminalEndRef = useRef(null);
 
   // Auto scroll terminal logs
@@ -86,10 +88,12 @@ export default function DeepResearch({
     }
 
     try {
+      scanAbortRef.current = new AbortController();
       const startRes = await fetch("/api/market/deep-research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market: activeMarket })
+        body: JSON.stringify({ market: activeMarket }),
+        signal: scanAbortRef.current.signal
       });
 
       if (!startRes.ok) {
@@ -105,8 +109,10 @@ export default function DeepResearch({
 
       // Poll status endpoint
       progressIntervalRef.current = setInterval(async () => {
+        const controller = new AbortController();
+        pollingAbortRef.current = controller;
         try {
-          const statusRes = await fetch(`/api/market/deep-research/status/${taskId}`);
+          const statusRes = await fetch(`/api/market/deep-research/status/${taskId}`, { signal: controller.signal });
           if (!statusRes.ok) {
             throw new Error("Görev durumu sorgulanamadı.");
           }
@@ -118,6 +124,7 @@ export default function DeepResearch({
 
           if (statusData.status === "completed") {
             clearInterval(progressIntervalRef.current);
+            if (pollingAbortRef.current) pollingAbortRef.current.abort();
             const results = statusData.results || [];
             setScanResults(results);
             if (results.length > 0) {
@@ -126,11 +133,13 @@ export default function DeepResearch({
             setLoading(false);
           } else if (statusData.status === "failed") {
             clearInterval(progressIntervalRef.current);
+            if (pollingAbortRef.current) pollingAbortRef.current.abort();
             setError(statusData.error || "Derin Araştırma başarısız oldu.");
             setLoading(false);
           }
         } catch (pollErr) {
           clearInterval(progressIntervalRef.current);
+          if (pollingAbortRef.current) pollingAbortRef.current.abort();
           setError(pollErr.message || "İlerleme durumu sorgulanırken hata oluştu.");
           setLoading(false);
         }
@@ -146,6 +155,12 @@ export default function DeepResearch({
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
+      }
+      if (pollingAbortRef.current) {
+        pollingAbortRef.current.abort();
+      }
+      if (scanAbortRef.current) {
+        scanAbortRef.current.abort();
       }
     };
   }, []);
@@ -175,6 +190,7 @@ export default function DeepResearch({
         {[
           { id: "bist", label: "Tüm BIST Şirketleri (~490)" },
           { id: "us", label: "Amerikan Borsaları (S&P 500 / Popüler)" },
+          { id: "germany", label: "Almanya Borsası (DAX 40)" },
           { id: "crypto", label: "Kripto Varlıklar (Top 30)" }
         ].map((m) => (
           <button
@@ -353,11 +369,11 @@ export default function DeepResearch({
                         </span>
                         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.1rem" }}>
                           <span style={{ fontSize: "0.75rem", color: changeColor, display: "flex", alignItems: "center", gap: "0.1rem", fontWeight: "600" }}>
-                            {changeIcon} {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%
+                            {changeIcon} {item.change >= 0 ? "+" : ""}{(item.change ?? 0).toFixed(2)}%
                           </span>
                           {item.weekly_change !== undefined && (
                             <span style={{ fontSize: "0.65rem", color: item.weekly_change >= 0 ? "var(--success)" : "var(--danger)", opacity: 0.8 }}>
-                              (H: {item.weekly_change >= 0 ? "+" : ""}{item.weekly_change.toFixed(1)}%)
+                              (H: {item.weekly_change >= 0 ? "+" : ""}{(item.weekly_change ?? 0).toFixed(1)}%)
                             </span>
                           )}
                         </div>
@@ -371,14 +387,13 @@ export default function DeepResearch({
                         </div>
                         <div style={{ position: "relative", width: "38px", height: "38px", display: "flex", justifyContent: "center", alignItems: "center" }}>
                           <svg width="38" height="38" style={{ transform: "rotate(-90deg)" }}>
-                            <circle cx="19" cy="19" r="16" fill="transparent" stroke="var(--border)" strokeWidth="3" />
+                            <circle cx="19" cy="19" r="16" fill="transparent" style={{ stroke: 'var(--border)', strokeWidth: 3 }} />
                             <circle 
                               cx="19" 
                               cy="19" 
                               r="16" 
                               fill="transparent" 
-                              stroke="var(--primary)" 
-                              strokeWidth="3" 
+                              style={{ stroke: 'var(--primary)', strokeWidth: 3 }} 
                               strokeDasharray="100.5" 
                               strokeDashoffset={100.5 - (100.5 * item.ai_score) / 100}
                               strokeLinecap="round"
@@ -437,17 +452,17 @@ export default function DeepResearch({
                       
                       <div className="card glass" style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem", border: "1px solid var(--border)" }}>
                         <span style={{ fontSize: "0.65rem", color: "var(--secondary-foreground)", fontWeight: "600", textTransform: "uppercase" }}>Giriş Seviyesi</span>
-                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--foreground)" }}>{selectedResult.strategy.entry_points || "Cari Fiyat"}</span>
+                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--foreground)" }}>{selectedResult?.strategy?.entry_points || "Cari Fiyat"}</span>
                       </div>
 
                       <div className="card glass" style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem", border: "1px solid var(--border)" }}>
                         <span style={{ fontSize: "0.65rem", color: "var(--success)", fontWeight: "600", textTransform: "uppercase" }}>Kar Al Hedefi</span>
-                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--success)" }}>{selectedResult.strategy.take_profit || "Belirtilmedi"}</span>
+                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--success)" }}>{selectedResult?.strategy?.take_profit || "Belirtilmedi"}</span>
                       </div>
 
                       <div className="card glass" style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem", border: "1px solid var(--border)" }}>
                         <span style={{ fontSize: "0.65rem", color: "var(--danger)", fontWeight: "600", textTransform: "uppercase" }}>Stop-Loss</span>
-                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--danger)" }}>{selectedResult.strategy.stop_loss || "Belirtilmedi"}</span>
+                        <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--danger)" }}>{selectedResult?.strategy?.stop_loss || "Belirtilmedi"}</span>
                       </div>
                     </div>
 
@@ -457,7 +472,7 @@ export default function DeepResearch({
                         <Target size={14} className="text-primary" /> Stratejik İşlem Planı
                       </span>
                       <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--foreground)", lineHeight: "1.5" }}>
-                        {selectedResult.strategy.plan || "İşlem planı bulunmuyor."}
+                        {selectedResult?.strategy?.plan || "İşlem planı bulunmuyor."}
                       </p>
                     </div>
 
@@ -465,15 +480,15 @@ export default function DeepResearch({
                     <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
                         <span style={{ fontSize: "0.7rem", color: "var(--secondary-foreground)", fontWeight: "700" }}>Kısa Vade:</span>
-                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult.strategy.short_term}</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult?.strategy?.short_term}</span>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
                         <span style={{ fontSize: "0.7rem", color: "var(--secondary-foreground)", fontWeight: "700" }}>Orta Vade:</span>
-                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult.strategy.medium_term}</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult?.strategy?.medium_term}</span>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
                         <span style={{ fontSize: "0.7rem", color: "var(--secondary-foreground)", fontWeight: "700" }}>Uzun Vade:</span>
-                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult.strategy.long_term}</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--foreground)", lineHeight: "1.4" }}>{selectedResult?.strategy?.long_term}</span>
                       </div>
                     </div>
 
@@ -481,7 +496,7 @@ export default function DeepResearch({
                     <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                       <span style={{ fontSize: "0.75rem", color: "var(--secondary-foreground)", fontWeight: "700" }}>Analiz Gerekçesi:</span>
                       <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--secondary-foreground)", lineHeight: "1.5" }}>
-                        {selectedResult.strategy.justification}
+                        {selectedResult?.strategy?.justification}
                       </p>
                     </div>
                   </div>
@@ -490,7 +505,7 @@ export default function DeepResearch({
                 {/* Tab 2: Agents */}
                 {detailTab === "agents" && (
                   <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", textAlign: "left" }}>
-                    {selectedResult.agents.map((agent, index) => {
+                    {(selectedResult?.agents || []).map((agent, index) => {
                       const sigColor = agent.signal.includes("AL") ? "var(--success)" : agent.signal.includes("SAT") ? "var(--danger)" : "var(--secondary-foreground)";
                       
                       return (
