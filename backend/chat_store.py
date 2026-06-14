@@ -1,4 +1,4 @@
-"""In-memory chat session store.
+"""SQLite-backed chat session store.
 
 Sessions are scoped by an opaque UUID issued by the server. Each session tracks
 the message history plus the currently selected ticker (so that ticker changes
@@ -7,11 +7,11 @@ on every access (lazy eviction).
 """
 
 import os
-import threading
 import time
 import uuid
 from typing import Optional
-
+from models import ChatSession, db
+from loguru import logger
 
 class ChatStore:
     def __init__(self, ttl_seconds: Optional[int] = None) -> None:
@@ -21,8 +21,6 @@ class ChatStore:
             except ValueError:
                 ttl_seconds = 3600
         self._ttl = ttl_seconds
-        self._sessions: dict[str, dict] = {}
-        self._lock = threading.Lock()
 
     @staticmethod
     def new_session_id() -> str:
@@ -30,54 +28,56 @@ class ChatStore:
 
     def create(self) -> str:
         sid = self.new_session_id()
-        with self._lock:
-            self._cleanup_locked()
-            self._sessions[sid] = {
-                "messages": [],
-                "current_ticker": None,
-                "last_active": time.time(),
-            }
+        self._cleanup()
+        with db.atomic():
+            ChatSession.create(
+                session_id=sid,
+                messages=[],
+                current_ticker=None,
+                last_active=time.time()
+            )
         return sid
 
     def exists(self, sid: str) -> bool:
-        with self._lock:
-            self._cleanup_locked()
-            return sid in self._sessions
+        self._cleanup()
+        return ChatSession.select().where(ChatSession.session_id == sid).exists()
 
     def get_messages(self, sid: str) -> list[dict]:
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return []
-            return list(session["messages"])
+        self._cleanup()
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
+            return list(session.messages) if session.messages else []
+        except ChatSession.DoesNotExist:
+            return []
 
     def get_current_ticker(self, sid: str) -> Optional[str]:
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return None
-            return session["current_ticker"]
+        self._cleanup()
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
+            return session.current_ticker
+        except ChatSession.DoesNotExist:
+            return None
 
     def touch(self, sid: str) -> bool:
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return False
-            session["last_active"] = time.time()
+        self._cleanup()
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
+            session.last_active = time.time()
+            session.save()
             return True
+        except ChatSession.DoesNotExist:
+            return False
 
     def reset_messages(self, sid: str) -> bool:
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return False
-            session["messages"] = []
-            session["last_active"] = time.time()
+        self._cleanup()
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
+            session.messages = []
+            session.last_active = time.time()
+            session.save()
             return True
+        except ChatSession.DoesNotExist:
+            return False
 
     def set_ticker(self, sid: str, ticker: Optional[str]) -> tuple[bool, bool]:
         """Update the session's current ticker. If the ticker changed, the
@@ -85,63 +85,67 @@ class ChatStore:
 
         Returns (session_exists, did_reset).
         """
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return False, False
+        self._cleanup()
+        try:
+            session = ChatSession.get(ChatSession.session_id == sid)
             did_reset = False
             normalized = ticker.replace(" ", "").upper() if ticker and ticker.replace(" ", "") else None
-            if normalized != session["current_ticker"]:
-                if session["current_ticker"] is not None:
-                    session["messages"] = []
+            if normalized != session.current_ticker:
+                if session.current_ticker is not None:
+                    session.messages = []
                     did_reset = True
-                session["current_ticker"] = normalized
-            session["last_active"] = time.time()
+                session.current_ticker = normalized
+            session.last_active = time.time()
+            session.save()
             return True, did_reset
+        except ChatSession.DoesNotExist:
+            return False, False
 
     def add_message(self, sid: str, role: str, content: str) -> bool:
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session is None:
-                return False
-            session["messages"].append({"role": role, "content": content})
-            session["last_active"] = time.time()
+        self._cleanup()
+        try:
+            with db.atomic():
+                session = ChatSession.get(ChatSession.session_id == sid)
+                msgs = list(session.messages) if session.messages else []
+                msgs.append({"role": role, "content": content})
+                session.messages = msgs
+                session.last_active = time.time()
+                session.save()
             return True
+        except ChatSession.DoesNotExist:
+            return False
 
     def rollback_last_message(self, sid: str, role: str, content: str) -> bool:
-        """Rollback the last message in the session if it matches the role and content.
-        
-        This prevents encapsulation violation and verifies the message content to avoid
-        race conditions where another message might have been appended.
-        """
-        with self._lock:
-            self._cleanup_locked()
-            session = self._sessions.get(sid)
-            if session and session["messages"]:
-                last_msg = session["messages"][-1]
-                if last_msg["role"] == role and last_msg["content"] == content:
-                    session["messages"].pop()
-                    session["last_active"] = time.time()
-                    return True
-        return False
+        """Rollback the last message in the session if it matches the role and content."""
+        self._cleanup()
+        try:
+            with db.atomic():
+                session = ChatSession.get(ChatSession.session_id == sid)
+                msgs = list(session.messages) if session.messages else []
+                if msgs:
+                    last_msg = msgs[-1]
+                    if last_msg["role"] == role and last_msg["content"] == content:
+                        msgs.pop()
+                        session.messages = msgs
+                        session.last_active = time.time()
+                        session.save()
+                        return True
+            return False
+        except ChatSession.DoesNotExist:
+            return False
 
     def stats(self) -> dict:
-        with self._lock:
-            return {
-                "active_sessions": len(self._sessions),
-                "ttl_seconds": self._ttl,
-            }
+        return {
+            "active_sessions": ChatSession.select().count(),
+            "ttl_seconds": self._ttl,
+        }
 
-    def _cleanup_locked(self) -> None:
+    def _cleanup(self) -> None:
         now = time.time()
-        expired = [
-            sid for sid, s in self._sessions.items()
-            if now - s["last_active"] > self._ttl
-        ]
-        for sid in expired:
-            del self._sessions[sid]
-
+        expiry_threshold = now - self._ttl
+        # Using execute() correctly for Peewee delete queries
+        deleted = ChatSession.delete().where(ChatSession.last_active <= expiry_threshold).execute()
+        if deleted > 0:
+            logger.info(f"Cleaned up {deleted} expired chat sessions.")
 
 chat_store = ChatStore()
