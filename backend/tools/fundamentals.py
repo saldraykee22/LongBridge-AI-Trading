@@ -44,7 +44,7 @@ _FIELDS = [
 ]
 
 
-def run(ticker: str) -> str:
+def run(ticker: str, **kwargs) -> str:
     symbol = (ticker or "").upper().strip()
     if not symbol:
         return "Hata: ticker boş olamaz."

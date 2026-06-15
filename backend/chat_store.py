@@ -125,13 +125,15 @@ class ChatStore:
         except ChatSession.DoesNotExist:
             return False, False
 
-    def add_message(self, sid: str, role: str, content: str) -> bool:
+    def add_message(self, sid: str, role: str, content: str, **extra) -> bool:
         self._cleanup()
         try:
             with db.atomic():
                 session = ChatSession.get(ChatSession.session_id == sid)
                 msgs = list(session.messages) if session.messages else []
-                msgs.append({"role": role, "content": content})
+                msg = {"role": role, "content": content}
+                msg.update(extra)
+                msgs.append(msg)
                 session.messages = msgs
                 session.last_active = time.time()
                 session.save()
@@ -155,6 +157,24 @@ class ChatStore:
                         return True
             return False
         except ChatSession.DoesNotExist:
+            return False
+
+    def trim_messages_to(self, sid: str, max_count: int) -> bool:
+        """Trim session messages to at most max_count, keeping only the most recent ones."""
+        try:
+            with db.atomic():
+                session = ChatSession.get(ChatSession.session_id == sid)
+                msgs = list(session.messages) if session.messages else []
+                if len(msgs) > max_count:
+                    session.messages = msgs[:max_count]
+                    session.last_active = time.time()
+                    session.save()
+                    return True
+            return False
+        except ChatSession.DoesNotExist:
+            return False
+        except Exception as e:
+            logger.warning(f"trim_messages_to failed for session {sid[:8]}: {e}")
             return False
 
     def stats(self) -> dict:

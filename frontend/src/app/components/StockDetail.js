@@ -7,6 +7,7 @@ export default function StockDetail({
   stockData, analysis, analysisLoading, watchlist, toggleWatchlist,
   fetchAnalysis, ticker, chartData, period, setPeriod, formatVal, getBadgeClass
 }) {
+  if (!stockData) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2rem", width: "100%" }}>
         {/* Overview & Key Stats */}

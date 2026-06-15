@@ -35,7 +35,7 @@ SPEC: Dict[str, Any] = {
 _VALID_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
 
 
-def run(ticker: str, period: str = "1mo") -> str:
+def run(ticker: str, period: str = "1mo", **kwargs) -> str:
     symbol = (ticker or "").upper().strip()
     if not symbol:
         return "Hata: ticker boş olamaz."

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { apiUrl } from "../utils/api";
 
 const TICKER_SESSION_KEY = "longbridgeChatSessionId";
 const INDEPENDENT_SESSION_KEY = "longbridgeChatSessionIdIndependent";
@@ -47,6 +48,9 @@ export function useChat({ mode, ticker = null } = {}) {
   const sessionIdRef = useRef(null);
   const chatEndRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const inputRef = useRef(input);
+
+  useEffect(() => { inputRef.current = input; }, [input]);
 
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,7 +61,10 @@ export function useChat({ mode, ticker = null } = {}) {
   }, [messages, scrollToBottom]);
 
   const createSession = useCallback(async () => {
-    const r = await fetch("/api/chat/session", { method: "POST" });
+    const r = await fetch(apiUrl("/api/chat/session"), { 
+      method: "POST", 
+      signal: AbortSignal.timeout(8000) 
+    });
     if (!r.ok) throw new Error("Oturum oluşturulamadı");
     const d = await r.json();
     setSessionId(d.session_id);
@@ -71,7 +78,7 @@ export function useChat({ mode, ticker = null } = {}) {
     const cached = loadSessionId(sessionKey);
     if (cached) {
       try {
-        const res = await fetch(`/api/chat/session/${cached}`);
+        const res = await fetch(apiUrl(`/api/chat/session/${cached}`));
         if (res.ok) {
           const data = await res.json();
           setSessionId(cached);
@@ -105,6 +112,14 @@ export function useChat({ mode, ticker = null } = {}) {
     return () => clearTimeout(timer);
   }, [initSession]);
 
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleNewSession = useCallback(async () => {
     if (abortControllerRef.current) abortControllerRef.current.abort();
     setLoading(false);
@@ -126,7 +141,7 @@ export function useChat({ mode, ticker = null } = {}) {
 
   const sendMessage = useCallback(
     async (text) => {
-      const messageText = (text ?? input).trim();
+      const messageText = (text ?? inputRef.current).trim();
       if (!messageText || loading) return;
       setMessages((prev) => [...prev, { role: "user", content: messageText }]);
       setInput("");
@@ -146,7 +161,7 @@ export function useChat({ mode, ticker = null } = {}) {
             ? { session_id: sid, message: messageText, ticker }
             : { session_id: sid, message: messageText };
 
-        const res = await fetch(endpoint, {
+        const res = await fetch(apiUrl(endpoint), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -186,7 +201,31 @@ export function useChat({ mode, ticker = null } = {}) {
 
           let userMsg = "";
           if (res.status === 502) {
+            // Backend mesajı session'a kaydetmiş olabilir, session'ı sorgulayıp kurtarmayı dene
             userMsg = "Yapay zeka modeli şu an yanıt üretemiyor. Lütfen biraz bekleyip tekrar deneyin.";
+            try {
+              const sessionRes = await fetch(apiUrl(`/api/chat/session/${sid}`));
+              if (sessionRes.ok) {
+                const sessionData = await sessionRes.json();
+                if (sessionData.messages && sessionData.messages.length > 0) {
+                  const existingUserMsgs = new Set();
+                  setMessages((prev) => {
+                    prev.forEach((m) => { if (m.role === "user") existingUserMsgs.add(m.content); });
+                    const newMsgs = sessionData.messages.filter(
+                      (m) => m.role !== "user" || !existingUserMsgs.has(m.content)
+                    );
+                    if (newMsgs.length > 0) {
+                      return [...prev, ...newMsgs];
+                    }
+                    return prev;
+                  });
+                  setError("");
+                  setLoading(false);
+                  abortControllerRef.current = null;
+                  return;
+                }
+              }
+            } catch (_) { /* session sorgulama başarısız, normal hata akışı */ }
           } else if (res.status === 500) {
             userMsg = "Sunucuda beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.";
           } else if (res.status === 429) {
@@ -221,7 +260,7 @@ export function useChat({ mode, ticker = null } = {}) {
         abortControllerRef.current = null;
       }
     },
-    [input, loading, mode, ticker, endpoint, createSession, sessionKey]
+    [loading, mode, ticker, endpoint, createSession, sessionKey]
   );
 
   return {

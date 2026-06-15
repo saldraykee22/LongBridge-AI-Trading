@@ -21,7 +21,7 @@ function MessageBubble({ msg, markdownMode }) {
       {msg.role === "tool" ? (
         <div>
           <div style={{ fontSize: "0.75rem", color: "var(--secondary-foreground)", fontStyle: "italic", marginBottom: "0.3rem" }}>
-            🔎 {msg.toolName || "Araç"} çalıştırıldı
+            🔎 {msg.tool_name || msg.toolName || "Araç"} çalıştırıldı
           </div>
           <Markdown content={msg.content} />
         </div>

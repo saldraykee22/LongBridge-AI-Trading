@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { apiUrl } from "../utils/api";
 
 export function useStockData() {
   const [ticker, setTicker] = useState("THYAO");
@@ -24,7 +25,7 @@ export function useStockData() {
     const currentId = ++requestIdRef.current;
     setAnalysisLoading(true);
     try {
-      const url = `/api/stock/${symbol}/analysis` + (force ? "?force_refresh=true" : "");
+      const url = apiUrl(`/api/stock/${symbol}/analysis${force ? "?force_refresh=true" : ""}`);
       const analysisRes = await fetch(url, { signal: controller.signal });
       if (currentId !== requestIdRef.current) return;
       if (analysisRes.ok) {
@@ -33,6 +34,8 @@ export function useStockData() {
           setAnalysis(data);
         }
       } else if (currentId === requestIdRef.current) {
+        const errorText = await analysisRes.text().catch(() => "");
+        console.error(`Analysis fetch failed (${analysisRes.status}):`, errorText.slice(0, 500));
         setAnalysis(null);
       }
     } catch (err) {
@@ -57,7 +60,7 @@ export function useStockData() {
     setAnalysisLoading(true);
     setError("");
     try {
-      const detailsRes = await fetch(`/api/stock/${symbol}`, { signal: controller.signal });
+      const detailsRes = await fetch(apiUrl(`/api/stock/${symbol}`), { signal: controller.signal });
       if (!detailsRes.ok) throw new Error("Hisse senedi verisi bulunamadı.");
       const details = await detailsRes.json();
       if (controller.signal.aborted) return;
@@ -93,7 +96,7 @@ export function useStockData() {
     const controller = new AbortController();
     chartRequestControllerRef.current = controller;
     try {
-      const chartRes = await fetch(`/api/stock/${symbol}/chart?period=${timePeriod}`, { signal: controller.signal });
+      const chartRes = await fetch(apiUrl(`/api/stock/${symbol}/chart?period=${timePeriod}`), { signal: controller.signal });
       if (chartRes.ok) {
         const data = await chartRes.json();
         if (!controller.signal.aborted) {
@@ -104,6 +107,14 @@ export function useStockData() {
       if (err.name === "AbortError") return;
       console.error("Grafik verisi yüklenemedi:", err);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      analysisControllerRef.current?.abort();
+      stockRequestControllerRef.current?.abort();
+      chartRequestControllerRef.current?.abort();
+    };
   }, []);
 
   return {

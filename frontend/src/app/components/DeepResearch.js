@@ -20,10 +20,10 @@ import {
 import SVGChart from "./SVGChart";
 
 export default function DeepResearch({
-  setTicker,
-  setActiveTab,
-  formatVal,
-  getBadgeClass
+  setTicker = () => {},
+  setActiveTab = () => {},
+  formatVal = (v) => v ?? "-",
+  getBadgeClass = () => ""
 }) {
   const [activeMarket, setActiveMarket] = useState("bist"); // "bist", "us", "crypto"
   const [loading, setLoading] = useState(false);
@@ -109,6 +109,7 @@ export default function DeepResearch({
 
       // Poll status endpoint
       progressIntervalRef.current = setInterval(async () => {
+        if (pollingAbortRef.current) pollingAbortRef.current.abort();
         const controller = new AbortController();
         pollingAbortRef.current = controller;
         try {
@@ -405,11 +406,11 @@ export default function DeepResearch({
                               fill="transparent" 
                               style={{ stroke: 'var(--primary)', strokeWidth: 3 }} 
                               strokeDasharray="100.5" 
-                              strokeDashoffset={100.5 - (100.5 * item.ai_score) / 100}
+                              strokeDashoffset={100.5 - (100.5 * (item.ai_score ?? 0)) / 100}
                               strokeLinecap="round"
                             />
                           </svg>
-                          <span style={{ position: "absolute", fontSize: "0.7rem", fontWeight: "800" }}>{item.ai_score}</span>
+                          <span style={{ position: "absolute", fontSize: "0.7rem", fontWeight: "800" }}>{item.ai_score ?? 0}</span>
                         </div>
                       </div>
                     </div>
@@ -516,7 +517,7 @@ export default function DeepResearch({
                 {detailTab === "agents" && (
                   <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", textAlign: "left" }}>
                     {(selectedResult?.agents || []).map((agent, index) => {
-                      const sigColor = agent.signal.includes("AL") ? "var(--success)" : agent.signal.includes("SAT") ? "var(--danger)" : "var(--secondary-foreground)";
+                      const sigColor = (agent.signal ?? "").includes("AL") ? "var(--success)" : (agent.signal ?? "").includes("SAT") ? "var(--danger)" : "var(--secondary-foreground)";
                       
                       return (
                         <div key={index} className="card glass" style={{ padding: "0.75rem", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
@@ -549,7 +550,7 @@ export default function DeepResearch({
                         period={chartPeriod}
                         setPeriod={setChartPeriod}
                         formatVal={formatVal}
-                        currency={selectedResult.currency}
+                        currency={selectedResult.currency ?? "USD"}
                       />
                     )}
                   </div>

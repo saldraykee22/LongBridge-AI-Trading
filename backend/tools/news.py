@@ -29,7 +29,7 @@ SPEC: Dict[str, Any] = {
 }
 
 
-def run(ticker: str, limit: int = 5) -> str:
+def run(ticker: str, limit: int = 5, **kwargs) -> str:
     # Lazy import to avoid pulling in main.py's heavy dependencies (litellm, etc.)
     from main import get_news_for_ticker
 

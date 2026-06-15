@@ -3,14 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Search,
-  Send,
   RefreshCw,
   AlertCircle,
   Activity,
   BookOpen,
   FileText,
   Newspaper,
-  Star,
   LayoutDashboard,
   Compass,
   Sparkles,
@@ -78,6 +76,7 @@ export default function Home() {
 
   const abortControllersRef = useRef({});
   const fetchedTabsRef = useRef(new Set());
+  const dashboardAbortControllerRef = useRef(null);
 
   // Watchlist handlers
   useEffect(() => {
@@ -131,6 +130,11 @@ export default function Home() {
         if (!controller.signal.aborted) {
           setMarketOverview(data);
         }
+      } else {
+        console.warn("Market overview fetch failed:", res.status);
+        if (!controller.signal.aborted) {
+          setMarketOverview(null);
+        }
       }
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -155,6 +159,11 @@ export default function Home() {
         const data = await res.json();
         if (!controller.signal.aborted) {
           setScreenerData(data);
+        }
+      } else {
+        console.warn("Screener fetch failed:", res.status);
+        if (!controller.signal.aborted) {
+          setScreenerData([]);
         }
       }
     } catch (err) {
@@ -182,6 +191,12 @@ export default function Home() {
           setAiRankings(data.rankings || []);
           setAiCommentary(data.commentary || "");
         }
+      } else {
+        console.warn("AI Rankings fetch failed:", res.status);
+        if (!controller.signal.aborted) {
+          setAiRankings([]);
+          setAiCommentary("");
+        }
       }
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -207,6 +222,11 @@ export default function Home() {
         if (!controller.signal.aborted) {
           setRecommendations(data);
         }
+      } else {
+        console.warn("Recommendations fetch failed:", res.status);
+        if (!controller.signal.aborted) {
+          setRecommendations(null);
+        }
       }
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -219,7 +239,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    dashboardAbortControllerRef.current = controller;
     const timer = setTimeout(() => {
+      if (controller.signal.aborted) return;
       if (activeTab === "dashboard") {
         if (!fetchedTabsRef.current.has("dashboard")) {
           fetchedTabsRef.current.add("dashboard");
@@ -237,7 +260,10 @@ export default function Home() {
         }
       }
     }, 0);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [activeTab, screenerMarket, screenerPreset, fetchMarketOverview, fetchScreenerData, fetchAiRankings, fetchRecommendations]);
 
   const handleSearchSubmit = (e) => {

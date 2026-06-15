@@ -23,6 +23,7 @@ const SAFE_SCHEMA = {
   },
   tagNames: [
     ...(defaultSchema.tagNames || []),
+    "pre",
   ],
   protocols: {
     ...defaultSchema.protocols,
@@ -56,6 +57,7 @@ const CodeRenderer = ({ inline, className, children, ...props }) => {
   if (inline) {
     return (
       <code
+        className={className}
         style={{
           background: "rgba(255,255,255,0.08)",
           padding: "0.1rem 0.35rem",
@@ -69,23 +71,39 @@ const CodeRenderer = ({ inline, className, children, ...props }) => {
       </code>
     );
   }
+  // Block code: let ReactMarkdown wrap this in <pre>. We only style the <code> tag.
   return (
-    <pre
+    <code
+      className={className}
       style={{
-        background: "rgba(0,0,0,0.4)",
-        padding: "0.75rem 1rem",
-        borderRadius: "8px",
-        overflowX: "auto",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
         fontSize: "0.85rem",
-        border: "1px solid var(--border)",
       }}
+      {...props}
     >
-      <code className={className} {...props}>
-        {children}
-      </code>
-    </pre>
+      {children}
+    </code>
   );
 };
+
+const PreRenderer = ({ children, ...props }) => (
+  <pre
+    style={{
+      display: "block",
+      background: "rgba(0,0,0,0.4)",
+      padding: "0.75rem 1rem",
+      borderRadius: "8px",
+      overflowX: "auto",
+      fontSize: "0.85rem",
+      border: "1px solid var(--border)",
+      whiteSpace: "pre",
+      margin: "0.5rem 0",
+    }}
+    {...props}
+  >
+    {children}
+  </pre>
+);
 
 export default function Markdown({ content, className = "" }) {
   if (!content) return null;
@@ -103,6 +121,7 @@ export default function Markdown({ content, className = "" }) {
         components={{
           a: LinkRenderer,
           code: CodeRenderer,
+          pre: PreRenderer,
         }}
       >
         {content}

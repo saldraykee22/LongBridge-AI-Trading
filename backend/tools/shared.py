@@ -1,7 +1,10 @@
 """Shared utilities for backend tools — extracted from main.py to avoid circular imports."""
 
+import threading
 import time
 from typing import Any, Optional
+
+from shared_rate_limiter import yf_rate_limit_wait
 
 # Currency symbol mapping (mirrors main.py)
 CURRENCY_SYMBOLS = {"USD": "$", "EUR": "\u20ac", "TRY": "\u20ba", "GBP": "\u00a3", "JPY": "\u00a5"}
@@ -11,35 +14,23 @@ CURRENCY_SYMBOLS = {"USD": "$", "EUR": "\u20ac", "TRY": "\u20ba", "GBP": "\u00a3
 # =============================================================================
 _yfinance_simple_cache: dict = {}
 _cache_timestamps: dict = {}
+_cache_lock = threading.Lock()
 
 
 def get_cached_yfinance(key: str, ttl_seconds: float = 600.0) -> Optional[Any]:
-    entry = _yfinance_simple_cache.get(key)
-    if entry is not None:
-        age = time.time() - _cache_timestamps.get(key, 0)
-        if age < ttl_seconds:
-            return entry
+    with _cache_lock:
+        entry = _yfinance_simple_cache.get(key)
+        if entry is not None:
+            age = time.time() - _cache_timestamps.get(key, 0)
+            if age < ttl_seconds:
+                return entry
     return None
 
 
 def set_cached_yfinance(key: str, val: Any) -> None:
-    _yfinance_simple_cache[key] = val
-    _cache_timestamps[key] = time.time()
-
-
-# =============================================================================
-# Yahoo Finance rate-limit cooldown (mirrors main.py's threading-based version)
-# =============================================================================
-_last_yf_request: float = 0.0
-
-
-def yf_rate_limit_wait(min_interval: float = 2.0) -> None:
-    global _last_yf_request
-    now = time.time()
-    elapsed = now - _last_yf_request
-    if elapsed < min_interval:
-        time.sleep(min_interval - elapsed)
-    _last_yf_request = time.time()
+    with _cache_lock:
+        _yfinance_simple_cache[key] = val
+        _cache_timestamps[key] = time.time()
 
 
 # =============================================================================

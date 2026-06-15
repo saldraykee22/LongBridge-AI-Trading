@@ -47,3 +47,9 @@ Derin Araştırma, seçilen bir piyasadaki (BIST 614+, ABD Hisseleri, Almanya DA
 ## ⚠️ Kritik Hususlar ve Dikkat Edilecekler
 - **Cache Eviction:** Derin araştırma esnasında yapılan yfinance sorguları sunucunun ana önbelleğini ısıtır (`set_cached_yfinance`).
 - **GIL & Concurrency:** Yoğun CPU ve I/O barındıran bu işlem, sunucunun ana thread'ini engellememek için bağımsız bir asenkron task worker içerisinde koşturulur.
+
+---
+
+## AI Analiz Fallback Davranışı
+
+- Derin araştırma `get_stock_analysis()` sonucunu kullandığı için, LLM analizi geçici olarak üretilemediğinde aday tamamen kaybolmaz. Analiz endpoint'i deterministik yedek JSON döndürür; yalnızca daha ağır beklenmeyen hatalarda Deep Research'in aday bazlı `ai_error` toleransı devreye girer.
